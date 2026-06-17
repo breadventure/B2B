@@ -547,6 +547,7 @@ function subItemsForSend(sub){
   return {items:items,total:total};
 }
 function confirmDelivery(subId,dateKey,action){
+  if(window._subBusy)return;
   var sub=null;SUBS.forEach(function(x){if(x.id===subId)sub=x;});if(!sub)return;
   var body={subId:subId,date:dateKey,code:CODE,action:action};
   if(action==='order'){var built=subItemsForSend(sub);
@@ -556,11 +557,14 @@ function confirmDelivery(subId,dateKey,action){
       address:sub.address||'',time:sub.time||'',date:dd.toLocaleDateString('ru-RU'),
       comment:(LANG==='sr'?'Redovna isporuka':'Регулярная поставка'),items:built.items,total:built.total};
   }
+  window._subBusy=true;
+  document.querySelectorAll('.pd-ok,.pd-skip,.pd-ed').forEach(function(b){b.disabled=true;b.style.opacity='.6';});
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)})
-    .then(function(r){return r.json();}).then(function(j){if(j&&j.ok){if(Array.isArray(j.subscriptions))SUBS=j.subscriptions;
-      if(action==='order')refreshOrders(function(){renderSubs();toast2(LANG==='sr'?'Isporuka potvrđena':'Поставка подтверждена');});
-      else{renderSubs();toast2(LANG==='sr'?'Isporuka preskočena':'Поставка пропущена');}
-    }else alert(LANG==='sr'?'Nije uspelo':'Не удалось');}).catch(function(){alert(LANG==='sr'?'Greška veze':'Ошибка соединения');});
+    .then(function(r){return r.json();}).then(function(j){window._subBusy=false;if(j&&j.ok){if(Array.isArray(j.subscriptions))SUBS=j.subscriptions;
+      var msg=j.already?(LANG==='sr'?'Već je obrađeno':'Уже обработано'):(action==='order'?(LANG==='sr'?'Isporuka potvrđena':'Поставка подтверждена'):(LANG==='sr'?'Isporuka preskočena':'Поставка пропущена'));
+      if(action==='order'&&!j.already)refreshOrders(function(){renderSubs();toast2(msg);});
+      else{renderSubs();toast2(msg);}
+    }else{alert(LANG==='sr'?'Nije uspelo':'Не удалось');renderSubs();}}).catch(function(){window._subBusy=false;alert(LANG==='sr'?'Greška veze':'Ошибка соединения');renderSubs();});
 }
 function renderSubs(){
   document.getElementById('hTitle').textContent=(LANG==='sr'?'Redovne isporuke':'Регулярные поставки');
