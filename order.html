@@ -291,7 +291,13 @@ function renderTotals(){
     w.innerHTML=lst+t+d;
   }else w.innerHTML='';
   document.getElementById('barSum').textContent=fmt(c.grand)+' '+cur();
-  document.getElementById('barSub').textContent=c.count>0?(c.count+' '+L('pos')):L('pick');
+  document.getElementById('barSub').textContent=c.count>0?(function(){
+    var sr=(LANG==='sr'),dm;
+    if(c.mode==='pickup'||c.mode==='need')dm=(sr?'preuzimanje':'самовывоз');
+    else if(c.mode==='free')dm=(sr?'besplatna dostava':'бесплатная доставка');
+    else dm=(sr?'dostava ':'доставка ')+fmt(c.delivery)+' '+cur();
+    return c.count+' '+L('pos')+' · '+dm;
+  })():L('pick');
   var _sb=document.getElementById('sendBtn');if(_sb&&!_sb.disabled&&_sb.textContent.indexOf('…')<0)_sb.textContent=L('submit');
   document.getElementById('sendBtn').disabled=c.count<1;
   document.getElementById('bar').style.display=(VIEW==='new')?'block':'none';
