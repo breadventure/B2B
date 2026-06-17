@@ -12,6 +12,7 @@
   .wrap{max-width:880px;margin:0 auto;padding:20px 18px 140px;}
   header{display:flex;align-items:center;gap:14px;border-bottom:2px solid var(--dark);padding:12px 0 16px;}
   .logo{width:44px;height:44px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Instrument Serif',serif;font-style:italic;font-size:24px;flex:0 0 auto;}
+  img.logo{background:#fff;object-fit:contain;padding:3px;border:1px solid var(--line);}
   h1{font-family:'Instrument Serif',serif;font-style:italic;font-size:27px;line-height:1.05;}
   .tag{font-size:12.5px;color:var(--muted);margin-top:2px;}
   .who{margin-left:auto;text-align:right;font-size:12.5px;color:var(--muted);}
@@ -98,7 +99,7 @@
 <body>
 <div class="wrap" id="wrap">
   <header>
-    <div class="logo">B</div>
+    <img class="logo" src="logo.svg" alt="BreadVenture" onerror="var d=document.createElement('div');d.className='logo';d.textContent='B';this.replaceWith(d);">
     <div><h1 id="hTitle">Кабинет партнёра</h1><div class="tag">BreadVenture · ремесленная пекарня · Белград</div></div>
     <div class="who" id="who" style="display:none;"></div>
   </header>
@@ -124,7 +125,7 @@ try{CODE=localStorage.getItem('bv_partner_code')||'';}catch(e){}
 var DOC_T={invoice:'Счёт',delivery_note:'Накладная',terms:'Условия',contract:'Договор',certificate:'Сертификат',offer:'КП',other:'Документ'};
 var DOC_T_SR={invoice:'Račun',delivery_note:'Otpremnica',terms:'Uslovi',contract:'Ugovor',certificate:'Sertifikat',offer:'Ponuda',other:'Dokument'};
 var TL={
-  ru:{neworder:'Новый заказ',myorders:'Мои заказы',docs:'Документы',info:'Условия',logout:'выйти',
+  ru:{neworder:'Новый заказ',myorders:'Мои заказы',docs:'Документы',info:'Условия',pricetab:'Прайс',logout:'выйти',
     submit:'Отправить заказ',pick:'выберите позиции',pos:'поз.',repeat:'Повторить',details:'Подробнее',collapse:'Свернуть',
     deliv:'Данные доставки',contact:'Контактное лицо',phone:'Телефон',ddate:'Дата доставки',
     pickup:'Самовывоз из пекарни (без доставки)',comment:'Комментарий',
@@ -132,7 +133,7 @@ var TL={
     noOrders:'У вас пока нет заказов.',noDocs:'Документы появятся здесь после загрузки пекарней.',
     open:'Открыть / скачать',terms:'Условия сотрудничества',contacts:'Контакты',price:'Актуальный прайс',
     delivHint:'Не ранее чем через 48 часов. По воскресеньям отгрузки нет.'},
-  sr:{neworder:'Nova porudžbina',myorders:'Moje porudžbine',docs:'Dokumenti',info:'Uslovi',logout:'izlaz',
+  sr:{neworder:'Nova porudžbina',myorders:'Moje porudžbine',docs:'Dokumenti',info:'Uslovi',pricetab:'Cenovnik',logout:'izlaz',
     submit:'Pošalji porudžbinu',pick:'izaberite stavke',pos:'stavki',repeat:'Ponovi',details:'Detaljnije',collapse:'Sažmi',
     deliv:'Podaci o dostavi',contact:'Kontakt osoba',phone:'Telefon',ddate:'Datum isporuke',
     pickup:'Preuzimanje u pekari (bez dostave)',comment:'Komentar',
@@ -193,11 +194,12 @@ function setView(v){VIEW=v;
   document.getElementById('logout').addEventListener('click',logout);
   var _tag=document.querySelector('.tag');if(_tag)_tag.textContent=(LANG==='sr'?'BreadVenture · zanatska pekara · Beograd':'BreadVenture · ремесленная пекарня · Белград');
   document.querySelectorAll('.lng').forEach(function(a){a.addEventListener('click',function(){LANG=this.dataset.l;try{localStorage.setItem('bv_partner_lang',LANG);}catch(e){}setView(VIEW);});});
-  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='docs')renderDocs();else renderTerms();
+  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='docs')renderDocs();else if(v==='price')renderPriceList();else renderTerms();
 }
 function navHtml(active){
   return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">'+L('neworder')+'</button>'+
          '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">'+L('myorders')+(ORDERS.length?' ('+ORDERS.length+')':'')+'</button>'+
+         '<button data-v="price" class="'+(active==='price'?'on':'')+'">'+L('pricetab')+'</button>'+
          '<button data-v="docs" class="'+(active==='docs'?'on':'')+'">'+L('docs')+(DOCS.length?' ('+DOCS.length+')':'')+'</button>'+
          '<button data-v="info" class="'+(active==='info'?'on':'')+'">'+L('info')+'</button></nav>';
 }
@@ -257,6 +259,15 @@ function renderTotals(){
   if(c.count>0){
     var rates=Object.keys(c.pdvByRate).map(Number).sort(function(a,b){return a-b;});
     var sr=(LANG==='sr');
+    var picked=[];catalog.forEach(function(it){var qq=Math.max(0,Number(qtyMap[it.id])||0);if(qq>0){var dd=discountFor(it,qq),uu=it.retail*(1-dd/100);picked.push({it:it,q:qq,disc:dd,unit:uu,sum:uu*qq});}});
+    var lst='<div class="sec-title" style="margin-top:4px;">'+(sr?'Vaša porudžbina':'Ваш заказ')+'</div><div class="form-card">';
+    picked.forEach(function(p,pi){
+      lst+='<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;'+(pi<picked.length-1?'border-bottom:1px solid var(--line);':'')+'font-size:13.5px;">'+
+        '<div><div style="font-weight:600;">'+esc(p.it.name)+(p.it.weight?' <span class="hint">('+esc(p.it.weight)+')</span>':'')+'</div>'+
+        '<div class="hint">'+p.q+' '+uName(itemUnit(p.it))+' × '+fmt(p.unit)+' '+cur()+(p.disc>0?' · −'+fmt(p.disc)+'%':'')+'</div></div>'+
+        '<div style="font-weight:700;white-space:nowrap;">'+fmt(p.sum)+' '+cur()+'</div></div>';
+    });
+    lst+='</div>';
     var t='<div class="totals">';
     t+='<div class="trow"><span>'+(sr?'Osnovna (sa PDV)':'Базовая (с PDV)')+'</span><span>'+fmt(c.base)+' '+cur()+'</span></div>';
     if(c.save>0)t+='<div class="trow"><span>'+(sr?'Popust po količini':'Скидка по объёму')+'</span><span>−'+fmt(c.save)+' '+cur()+'</span></div>';
@@ -271,7 +282,7 @@ function renderTotals(){
     else if(c.mode==='need')d='<div class="deliv warn"><span>⚠</span><div>'+(sd?'Iznos bez PDV manji od 2500 din. — dostupno samo preuzimanje. Do plative dostave nedostaje '+fmt(MIN_DELIVERY-c.net)+' din.':'Сумма без PDV меньше 2500 дин. — доступен только самовывоз. До платной доставки не хватает '+fmt(MIN_DELIVERY-c.net)+' дин.')+'</div></div>';
     else if(c.mode==='free')d='<div class="deliv ok"><span>✓</span><div>'+(sd?'Besplatna dostava po Beogradu (iznos bez PDV od 7000 din.).':'Бесплатная доставка по Белграду (сумма без PDV от 7000 дин.).')+'</div></div>';
     else d='<div class="deliv pay"><span>🚲</span><div>'+(sd?'Dostava 350 din. Do besplatne nedostaje '+fmt(FREE_FROM-c.net)+' din. (bez PDV).':'Доставка 350 дин. До бесплатной не хватает '+fmt(FREE_FROM-c.net)+' дин. (без PDV).')+'</div></div>';
-    w.innerHTML=t+d;
+    w.innerHTML=lst+t+d;
   }else w.innerHTML='';
   document.getElementById('barSum').textContent=fmt(c.grand)+' '+cur();
   document.getElementById('barSub').textContent=c.count>0?(c.count+' '+L('pos')):L('pick');
@@ -341,7 +352,12 @@ function renderTerms(){
      (FOOT.email?'✉ <a href="mailto:'+esc(FOOT.email)+'" style="color:var(--blue-d);">'+esc(FOOT.email)+'</a><br>':'')+
      (FOOT.phone?'☎ <a href="tel:'+esc(FOOT.phone.replace(/\s/g,''))+'" style="color:var(--blue-d);">'+esc(FOOT.phone)+'</a><br>':'')+
      (owner?'<span class="hint">'+esc(owner)+'</span>':'')+'</div></div>';
-  // актуальный прайс (полноценный — пороги, состав, описание, фото)
+  c.innerHTML=h;bindNav();
+}
+function renderPriceList(){
+  document.getElementById('hTitle').textContent=L('pricetab');
+  document.getElementById('bar').style.display='none';
+  var c=document.getElementById('content');var h=navHtml('price');
   h+='<div class="sec-title">'+L('price')+'</div>';
   if(catalog.length){
     var pg={},po=[];
@@ -371,7 +387,7 @@ function renderTerms(){
         h+=(desc?'<div class="pdesc">'+esc(desc)+'</div>':'')+'</div></div>';
       });
     });
-  }else h+='<div class="empty">—</div>';
+  }else h+='<div class="empty">'+(LANG==='sr'?'Cenovnik još nije popunjen.':'Прайс пока не заполнен.')+'</div>';
   c.innerHTML=h;bindNav();
 }
 function renderDocs(){
