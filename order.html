@@ -24,6 +24,20 @@
   nav button.on{background:var(--dark);color:#fff;border-color:var(--dark);}
   .note{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:13px;color:#55544c;margin:14px 0;}
   .sec-title{font-family:'Instrument Serif',serif;font-style:italic;font-size:21px;margin:22px 0 10px;}
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px;display:flex;gap:14px;}
+  .pcard .ph{width:84px;height:84px;flex:0 0 84px;border-radius:11px;background:var(--cream);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:26px;color:#b9b6a8;overflow:hidden;}
+  .pcard .ph img{width:100%;height:100%;object-fit:cover;}
+  .pcard .pbody{flex:1;min-width:0;}
+  .pcard .ptitle{font-weight:700;font-size:15.5px;}
+  .pcard .ptitle .w{color:var(--muted);font-weight:500;font-size:13px;margin-left:7px;}
+  .pcard .psost{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .pcard .pret{font-size:13px;font-weight:600;color:var(--blue-d);margin:7px 0 9px;}
+  .pcard .pdesc{font-size:13px;color:#55544c;margin-top:10px;line-height:1.55;}
+  table.ptiers{border-collapse:collapse;font-size:12.5px;width:100%;max-width:430px;}
+  table.ptiers th,table.ptiers td{border:1px solid var(--line);padding:5px 9px;text-align:center;white-space:nowrap;}
+  table.ptiers th{background:var(--cream);font-weight:600;}
+  table.ptiers td:first-child,table.ptiers th:first-child{text-align:left;color:var(--muted);background:#fafaf6;}
+  @media(max-width:560px){.pcard{flex-direction:column;}.pcard .ph{width:100%;height:120px;flex:none;}table.ptiers{max-width:none;}}
   .cat{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue-d);margin:18px 0 8px;}
   .row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:9px;}
   .row .info{flex:1;min-width:0;}
@@ -139,6 +153,18 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){retur
 function fmt(n){return (Math.round(n*100)/100).toLocaleString('ru-RU',{maximumFractionDigits:2});}
 function itemPdv(it){var v=(it&&it.pdv!=null&&it.pdv!=='')?Number(it.pdv):PDV_DEFAULT;return isNaN(v)?PDV_DEFAULT:v;}
 function itemUnit(it){return (it&&it.uom)?it.uom:'шт';}
+function uName(u){if(LANG!=='sr')return u||'шт';return ({'шт':'kom','кг':'kg','г':'g','мл':'ml','л':'l'})[u]||u;}
+function cur(){return LANG==='sr'?'din.':'дин.';}
+function pdvName(){return 'PDV';}
+function nextTierHint(it,q){
+  if(!it||!it.tiers||!it.tiers.length||q<=0)return '';
+  var cd=discountFor(it,q);
+  var sorted=it.tiers.slice().sort(function(a,b){return a.min-b.min;});
+  var nxt=null;for(var i=0;i<sorted.length;i++){if(sorted[i].min>q&&(Number(sorted[i].disc)||0)>cd){nxt=sorted[i];break;}}
+  if(!nxt)return cd>0?(LANG==='sr'?'maksimalan popust −'+fmt(cd)+'%':'макс. скидка −'+fmt(cd)+'%'):'';
+  var need=nxt.min-q,uu=uName(itemUnit(it)),dd=fmt(Number(nxt.disc)||0);
+  return LANG==='sr'?('još '+need+' '+uu+' do popusta −'+dd+'%'):('ещё '+need+' '+uu+' до скидки −'+dd+'%');
+}
 function discountFor(it,qty){if(!it||!it.tiers||!it.tiers.length)return 0;var d=0,best=-1;
   it.tiers.forEach(function(t){if(qty>=t.min&&t.min>best){best=t.min;d=Number(t.disc)||0;}});return d;}
 function minB2BLocal(it){if(!it||!it.tiers||!it.tiers.length)return it.retail;var md=0;it.tiers.forEach(function(t){var d=Number(t.disc)||0;if(d>md)md=d;});return it.retail*(1-md/100);}
@@ -165,6 +191,7 @@ function setView(v){VIEW=v;
   document.getElementById('who').style.display='block';
   document.getElementById('who').innerHTML='<span class="lang-sw"><a class="lng'+(LANG==='ru'?' on':'')+'" data-l="ru">RU</a><a class="lng'+(LANG==='sr'?' on':'')+'" data-l="sr">SR</a></span> · '+esc(PARTNER)+' · <a id="logout">'+L('logout')+'</a>';
   document.getElementById('logout').addEventListener('click',logout);
+  var _tag=document.querySelector('.tag');if(_tag)_tag.textContent=(LANG==='sr'?'BreadVenture · zanatska pekara · Beograd':'BreadVenture · ремесленная пекарня · Белград');
   document.querySelectorAll('.lng').forEach(function(a){a.addEventListener('click',function(){LANG=this.dataset.l;try{localStorage.setItem('bv_partner_lang',LANG);}catch(e){}setView(VIEW);});});
   if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='docs')renderDocs();else renderTerms();
 }
@@ -191,7 +218,8 @@ function renderNew(){
       var q=Math.max(0,Number(qtyMap[it.id])||0),disc=discountFor(it,q),unit=it.retail*(1-disc/100),u=itemUnit(it);
       h+='<div class="row" data-id="'+it.id+'"><div class="info">'+
          '<div class="nm">'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</div>'+
-         '<div class="pr">'+(q>0?'<b>'+fmt(unit)+' дин./'+esc(u)+'</b>'+(disc>0?' (−'+fmt(disc)+'%)':'')+' · '+fmt(unit*q)+' дин.':'<b>'+fmt(it.retail)+' дин./'+esc(u)+'</b>')+'</div>'+
+         '<div class="pr">'+(q>0?'<b>'+fmt(unit)+' '+cur()+'/'+esc(uName(u))+'</b>'+(disc>0?' (−'+fmt(disc)+'%)':'')+' · '+fmt(unit*q)+' '+cur():'<b>'+fmt(it.retail)+' '+cur()+'/'+esc(uName(u))+'</b>')+'</div>'+
+         '<div class="hint tierhint" style="color:var(--blue-d);margin-top:3px;min-height:1px;">'+nextTierHint(it,q)+'</div>'+
          '</div><div class="qty"><button data-act="m">−</button>'+
          '<input type="number" min="0" step="1" value="'+q+'" class="qi"><button data-act="p">+</button></div></div>';
     });
@@ -221,28 +249,31 @@ function bindRows(){
 }
 function updateRow(row,id){var it=itemByIdLocal(id);if(!it)return;
   var q=Math.max(0,Number(qtyMap[id])||0),disc=discountFor(it,q),unit=it.retail*(1-disc/100),u=itemUnit(it);
-  row.querySelector('.pr').innerHTML=q>0?'<b>'+fmt(unit)+' дин./'+esc(u)+'</b>'+(disc>0?' (−'+fmt(disc)+'%)':'')+' · '+fmt(unit*q)+' дин.':'<b>'+fmt(it.retail)+' дин./'+esc(u)+'</b>';}
+  row.querySelector('.pr').innerHTML=q>0?'<b>'+fmt(unit)+' '+cur()+'/'+esc(uName(u))+'</b>'+(disc>0?' (−'+fmt(disc)+'%)':'')+' · '+fmt(unit*q)+' '+cur():'<b>'+fmt(it.retail)+' '+cur()+'/'+esc(uName(u))+'</b>';
+  var th=row.querySelector('.tierhint');if(th)th.textContent=nextTierHint(it,q);}
 function itemByIdLocal(id){var r=null;catalog.forEach(function(x){if(x.id===id)r=x;});return r;}
 function renderTotals(){
   var c=compute(),w=document.getElementById('totalsWrap');if(!w)return;
   if(c.count>0){
     var rates=Object.keys(c.pdvByRate).map(Number).sort(function(a,b){return a-b;});
+    var sr=(LANG==='sr');
     var t='<div class="totals">';
-    t+='<div class="trow"><span>Базовая (с PDV)</span><span>'+fmt(c.base)+' дин.</span></div>';
-    if(c.save>0)t+='<div class="trow"><span>Скидка по объёму</span><span>−'+fmt(c.save)+' дин.</span></div>';
-    t+='<div class="trow"><span>Стоимость заказа (с PDV)</span><span>'+fmt(c.gross)+' дин.</span></div>';
-    rates.forEach(function(rt){t+='<div class="trow"><span>в т.ч. PDV '+rt+'%</span><span>'+fmt(c.pdvByRate[rt])+' дин.</span></div>';});
-    t+='<div class="trow"><span>Без PDV</span><span>'+fmt(c.net)+' дин.</span></div>';
-    t+='<div class="trow"><span>'+(c.mode==='pickup'||c.mode==='need'?'Самовывоз':'Доставка')+'</span><span>'+fmt(c.delivery)+' дин.</span></div>';
-    t+='<div class="trow g"><span>Итого к оплате</span><span>'+fmt(c.grand)+' дин.</span></div></div>';
+    t+='<div class="trow"><span>'+(sr?'Osnovna (sa PDV)':'Базовая (с PDV)')+'</span><span>'+fmt(c.base)+' '+cur()+'</span></div>';
+    if(c.save>0)t+='<div class="trow"><span>'+(sr?'Popust po količini':'Скидка по объёму')+'</span><span>−'+fmt(c.save)+' '+cur()+'</span></div>';
+    t+='<div class="trow"><span>'+(sr?'Iznos porudžbine (sa PDV)':'Стоимость заказа (с PDV)')+'</span><span>'+fmt(c.gross)+' '+cur()+'</span></div>';
+    rates.forEach(function(rt){t+='<div class="trow"><span>'+(sr?'u tome PDV ':'в т.ч. PDV ')+rt+'%</span><span>'+fmt(c.pdvByRate[rt])+' '+cur()+'</span></div>';});
+    t+='<div class="trow"><span>'+(sr?'bez PDV':'Без PDV')+'</span><span>'+fmt(c.net)+' '+cur()+'</span></div>';
+    t+='<div class="trow"><span>'+(c.mode==='pickup'||c.mode==='need'?(sr?'Preuzimanje':'Самовывоз'):(sr?'Dostava':'Доставка'))+'</span><span>'+fmt(c.delivery)+' '+cur()+'</span></div>';
+    t+='<div class="trow g"><span>'+(sr?'Ukupno za plaćanje':'Итого к оплате')+'</span><span>'+fmt(c.grand)+' '+cur()+'</span></div></div>';
     var d='';
-    if(c.mode==='pickup')d='<div class="deliv ok"><span>🏠</span><div>Самовывоз из пекарни — доставка не начисляется.</div></div>';
-    else if(c.mode==='need')d='<div class="deliv warn"><span>⚠</span><div>Сумма без PDV меньше 2500 дин. — доступен только самовывоз. До платной доставки не хватает '+fmt(MIN_DELIVERY-c.net)+' дин.</div></div>';
-    else if(c.mode==='free')d='<div class="deliv ok"><span>✓</span><div>Бесплатная доставка по Белграду (сумма без PDV от 7000 дин.).</div></div>';
-    else d='<div class="deliv pay"><span>🚲</span><div>Доставка 350 дин. До бесплатной не хватает '+fmt(FREE_FROM-c.net)+' дин. (без PDV).</div></div>';
+    var sd=(LANG==='sr');
+    if(c.mode==='pickup')d='<div class="deliv ok"><span>🏠</span><div>'+(sd?'Preuzimanje u pekari — dostava se ne naplaćuje.':'Самовывоз из пекарни — доставка не начисляется.')+'</div></div>';
+    else if(c.mode==='need')d='<div class="deliv warn"><span>⚠</span><div>'+(sd?'Iznos bez PDV manji od 2500 din. — dostupno samo preuzimanje. Do plative dostave nedostaje '+fmt(MIN_DELIVERY-c.net)+' din.':'Сумма без PDV меньше 2500 дин. — доступен только самовывоз. До платной доставки не хватает '+fmt(MIN_DELIVERY-c.net)+' дин.')+'</div></div>';
+    else if(c.mode==='free')d='<div class="deliv ok"><span>✓</span><div>'+(sd?'Besplatna dostava po Beogradu (iznos bez PDV od 7000 din.).':'Бесплатная доставка по Белграду (сумма без PDV от 7000 дин.).')+'</div></div>';
+    else d='<div class="deliv pay"><span>🚲</span><div>'+(sd?'Dostava 350 din. Do besplatne nedostaje '+fmt(FREE_FROM-c.net)+' din. (bez PDV).':'Доставка 350 дин. До бесплатной не хватает '+fmt(FREE_FROM-c.net)+' дин. (без PDV).')+'</div></div>';
     w.innerHTML=t+d;
   }else w.innerHTML='';
-  document.getElementById('barSum').textContent=fmt(c.grand)+' дин.';
+  document.getElementById('barSum').textContent=fmt(c.grand)+' '+cur();
   document.getElementById('barSub').textContent=c.count>0?(c.count+' '+L('pos')):L('pick');
   var _sb=document.getElementById('sendBtn');if(_sb&&!_sb.disabled&&_sb.textContent.indexOf('…')<0)_sb.textContent=L('submit');
   document.getElementById('sendBtn').disabled=c.count<1;
@@ -257,7 +288,7 @@ function renderOrders(){
   if(!ORDERS.length){h+='<div class="empty">'+L('noOrders')+'</div>';c.innerHTML=h;bindNav();return;}
   ORDERS.forEach(function(o){
     var st=o.status||'submitted';
-    var items=(o.items||[]).map(function(it){return '• '+it.name+(it.weight?' ('+it.weight+')':'')+' — '+it.qty+' '+(it.uom||'шт');}).join('\n');
+    var items=(o.items||[]).map(function(it){return '• '+it.name+(it.weight?' ('+it.weight+')':'')+' — '+it.qty+' '+uName(it.uom||'шт');}).join('\n');
     var dt='';try{dt=new Date(o.created).toLocaleDateString('ru-RU');}catch(e){}
     var open=openOrder===o.order_id;
     h+='<div class="ocard"><div class="top"><span class="onum">'+esc(o.order_id||'')+'</span>'+
@@ -274,7 +305,7 @@ function renderOrders(){
         ext.forEach(function(cm){h+='<div style="font-size:13px;color:#55544c;padding:3px 0;">💬 '+esc(cm.text)+'</div>';});}
       h+='</div>';
     }
-    h+='<div class="obottom"><span class="ototal">'+(o.total!==''&&o.total!=null?fmt(o.total)+' дин.':'')+'</span>'+
+    h+='<div class="obottom"><span class="ototal">'+(o.total!==''&&o.total!=null?fmt(o.total)+' '+cur():'')+'</span>'+
        '<button class="btn btn-line det" data-id="'+esc(o.order_id)+'" style="padding:9px 14px;font-size:13px;">'+(open?L('collapse'):L('details'))+'</button>'+
        '<button class="btn btn-line repeat" data-id="'+esc(o.order_id)+'" style="padding:9px 16px;font-size:13.5px;">'+L('repeat')+'</button></div>'+
        (o.comment?'<div class="hint" style="margin-top:8px;">'+L('yourComment')+': '+esc(o.comment)+'</div>':'')+'</div>';
@@ -310,7 +341,7 @@ function renderTerms(){
      (FOOT.email?'✉ <a href="mailto:'+esc(FOOT.email)+'" style="color:var(--blue-d);">'+esc(FOOT.email)+'</a><br>':'')+
      (FOOT.phone?'☎ <a href="tel:'+esc(FOOT.phone.replace(/\s/g,''))+'" style="color:var(--blue-d);">'+esc(FOOT.phone)+'</a><br>':'')+
      (owner?'<span class="hint">'+esc(owner)+'</span>':'')+'</div></div>';
-  // актуальный прайс (справочник)
+  // актуальный прайс (полноценный — пороги, состав, описание, фото)
   h+='<div class="sec-title">'+L('price')+'</div>';
   if(catalog.length){
     var pg={},po=[];
@@ -318,11 +349,26 @@ function renderTerms(){
     po.forEach(function(cc){
       if(cc)h+='<div class="cat">'+esc(catName(cc))+'</div>';
       pg[cc].forEach(function(it){
-        var u=itemUnit(it),mb=minB2BLocal(it);
-        h+='<div class="row" style="margin-bottom:7px;"><div class="info">'+
-           '<div class="nm">'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</div>'+
-           (mb<it.retail?'<div class="pr"><span class="hint">'+(LANG==='sr'?'po količini od':'по объёму от')+' '+fmt(mb)+' дин./'+esc(u)+'</span></div>':'')+
-           '</div><div style="text-align:right;font-weight:600;font-size:14px;white-space:nowrap;">'+fmt(it.retail)+' дин./'+esc(u)+'</div></div>';
+        var u=uName(itemUnit(it)),pdv=(it.pdv!=null&&it.pdv!=='')?Number(it.pdv):10;
+        var sost=LANG==='sr'?(it.sostavSr||it.sostav||''):(it.sostav||'');
+        var desc=LANG==='sr'?(it.descSr||it.desc||''):(it.desc||'');
+        var tiers=(it.tiers||[]).slice().sort(function(a,b){return a.min-b.min;});
+        h+='<div class="pcard">'+
+           '<div class="ph">'+(it.photo?'<img src="'+esc(it.photo)+'" alt="">':'🥖')+'</div>'+
+           '<div class="pbody">'+
+           '<div class="ptitle">'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</div>'+
+           (sost?'<div class="psost">'+(LANG==='sr'?'Sastav: ':'Состав: ')+esc(sost)+'</div>':'')+
+           '<div class="pret">'+(LANG==='sr'?'Maloprodaja: ':'Розница: ')+fmt(it.retail)+' '+cur()+' · PDV '+pdv+'%</div>';
+        if(tiers.length){
+          var head='<tr><th>'+(LANG==='sr'?'Od, '+u:'От, '+u)+'</th>',
+              rC='<tr><td>'+(LANG==='sr'?'Cena/'+u:'Цена/'+u)+'</td>',
+              rN='<tr><td>'+(LANG==='sr'?'bez PDV':'без PDV')+'</td>',
+              rD='<tr><td>'+(LANG==='sr'?'Popust':'Скидка')+'</td>';
+          tiers.forEach(function(t){var d=Number(t.disc)||0,pw=it.retail*(1-d/100),pn=pw/(1+pdv/100);
+            head+='<th>'+t.min+'+</th>';rC+='<td>'+fmt(pw)+'</td>';rN+='<td>'+fmt(pn)+'</td>';rD+='<td>'+fmt(d)+'%</td>';});
+          h+='<table class="ptiers">'+head+'</tr>'+rC+'</tr>'+rN+'</tr>'+rD+'</tr></table>';
+        }
+        h+=(desc?'<div class="pdesc">'+esc(desc)+'</div>':'')+'</div></div>';
       });
     });
   }else h+='<div class="empty">—</div>';
