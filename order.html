@@ -39,6 +39,8 @@
   table.ptiers th{background:var(--cream);font-weight:600;}
   table.ptiers td:first-child,table.ptiers th:first-child{text-align:left;color:var(--muted);background:#fafaf6;}
   @media(max-width:560px){.pcard{flex-direction:column;}.pcard .ph{width:100%;height:120px;flex:none;}table.ptiers{max-width:none;}}
+  .order-summary{background:var(--cream);border:1.5px solid var(--blue);border-radius:14px;padding:6px 16px;}
+  .order-divider{border:none;border-top:2px solid var(--line);margin:24px 0 0;}
   .cat{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue-d);margin:18px 0 8px;}
   .row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:9px;}
   .row .info{flex:1;min-width:0;}
@@ -199,8 +201,8 @@ function setView(v){VIEW=v;
 function navHtml(active){
   return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">'+L('neworder')+'</button>'+
          '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">'+L('myorders')+(ORDERS.length?' ('+ORDERS.length+')':'')+'</button>'+
-         '<button data-v="price" class="'+(active==='price'?'on':'')+'">'+L('pricetab')+'</button>'+
          '<button data-v="docs" class="'+(active==='docs'?'on':'')+'">'+L('docs')+(DOCS.length?' ('+DOCS.length+')':'')+'</button>'+
+         '<button data-v="price" class="'+(active==='price'?'on':'')+'">'+L('pricetab')+'</button>'+
          '<button data-v="info" class="'+(active==='info'?'on':'')+'">'+L('info')+'</button></nav>';
 }
 function bindNav(){document.querySelectorAll('nav button').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.v);});});}
@@ -233,11 +235,15 @@ function renderNew(){
      '<div class="field"><label class="lbl">'+L('ddate')+'</label><input class="inp" id="fDate" type="date"><div class="hint">'+L('delivHint')+'</div></div>'+
      '<div class="chk" id="fPickup"><span class="box"></span><span>'+L('pickup')+'</span></div>'+
      '<div class="field" style="margin-top:13px;"><label class="lbl">'+L('comment')+'</label><textarea class="inp" id="fComment"></textarea></div>'+
+     '<div class="hint" style="margin-top:8px;">'+(LANG==='sr'?'Podaci se pamte iz prethodne porudžbine — proverite i po potrebi izmenite.':'Данные подставляются из прошлого заказа — проверьте и при необходимости измените.')+'</div>'+
      '</div>';
   c.innerHTML=h;bindNav();bindRows();
   var d=new Date();d.setDate(d.getDate()+2);document.getElementById('fDate').min=d.toISOString().slice(0,10);
   document.getElementById('fPickup').classList.toggle('on',pickup);
   document.getElementById('fPickup').addEventListener('click',function(){pickup=!pickup;this.classList.toggle('on',pickup);renderTotals();});
+  var sc='',sp='';try{sc=localStorage.getItem('bv_p_contact')||'';sp=localStorage.getItem('bv_p_phone')||'';}catch(e){}
+  if(sc)document.getElementById('fContact').value=sc;
+  if(sp)document.getElementById('fPhone').value=sp;
   renderTotals();
 }
 function bindRows(){
@@ -260,7 +266,7 @@ function renderTotals(){
     var rates=Object.keys(c.pdvByRate).map(Number).sort(function(a,b){return a-b;});
     var sr=(LANG==='sr');
     var picked=[];catalog.forEach(function(it){var qq=Math.max(0,Number(qtyMap[it.id])||0);if(qq>0){var dd=discountFor(it,qq),uu=it.retail*(1-dd/100);picked.push({it:it,q:qq,disc:dd,unit:uu,sum:uu*qq});}});
-    var lst='<div class="sec-title" style="margin-top:4px;">'+(sr?'Vaša porudžbina':'Ваш заказ')+'</div><div class="form-card">';
+    var lst='<hr class="order-divider"><div class="sec-title" style="margin-top:16px;">'+(sr?'Vaša porudžbina':'Ваш заказ')+'</div><div class="order-summary">';
     picked.forEach(function(p,pi){
       lst+='<div style="display:flex;justify-content:space-between;gap:10px;padding:7px 0;'+(pi<picked.length-1?'border-bottom:1px solid var(--line);':'')+'font-size:13.5px;">'+
         '<div><div style="font-weight:600;">'+esc(p.it.name)+(p.it.weight?' <span class="hint">('+esc(p.it.weight)+')</span>':'')+'</div>'+
@@ -419,7 +425,8 @@ function sendOrder(){
   var c=compute();if(c.count<1)return;
   var contact=document.getElementById('fContact').value.trim();
   var phone=document.getElementById('fPhone').value.trim();
-  if(!contact||!phone){alert('Заполните контактное лицо и телефон.');return;}
+  if(!contact||!phone){alert(LANG==='sr'?'Popunite kontakt osobu i telefon.':'Заполните контактное лицо и телефон.');return;}
+  try{localStorage.setItem('bv_p_contact',contact);localStorage.setItem('bv_p_phone',phone);}catch(e){}
   var date=document.getElementById('fDate').value;
   var comment=document.getElementById('fComment').value.trim();if(pickup)comment=(comment?comment+' · ':'')+'Самовывоз';
   var items=[];catalog.forEach(function(it){var q=Math.max(0,Number(qtyMap[it.id])||0);if(!q)return;
