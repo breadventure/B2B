@@ -3931,6 +3931,7 @@
     <button class="tab" data-tab="orders">Заказы</button>
     <button class="tab" data-tab="arch">Архив</button>
     <button class="tab" data-tab="calendar">Календарь</button>
+    <button class="tab" data-tab="subs">Регулярные</button>
     <button class="tab" data-tab="partners">Партнёры</button>
   </nav>
 
@@ -4111,9 +4112,30 @@
   <section class="panel" id="panel-calendar">
     <div class="card">
       <h2 style="margin-top:0;">Календарь нерабочих дней</h2>
-      <p class="hint" style="margin-bottom:16px;">Отмечайте кликом праздничные и нерабочие дни. В эти даты партнёры не смогут оформить доставку, а в их кабинете появится баннер-предупреждение. Воскресенья нерабочие по умолчанию — отмечать их не нужно.</p>
+      <p class="hint" style="margin-bottom:14px;">Выберите тип отметки, затем кликайте по дням. В отмеченные даты партнёры не смогут оформить доставку, а в их кабинете появится баннер за 10 дней до даты. Воскресенья нерабочие по умолчанию.</p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+        <span class="lbl" style="margin:0;">Тип отметки:</span>
+        <select class="inp" id="calType" style="width:auto;">
+          <option value="weekend">Выходной</option>
+          <option value="holiday">Праздничные выходные</option>
+          <option value="maintenance">Технические работы</option>
+        </select>
+      </div>
       <div id="calWrap"></div>
       <div id="calList" style="margin-top:18px;"></div>
+      <div style="margin-top:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="calSave">Сохранить и уведомить партнёров</button>
+        <span class="st" id="calStatus"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-subs">
+    <div class="card">
+      <h2 style="margin-top:0;">Регулярные поставки</h2>
+      <p class="hint" style="margin-bottom:14px;">Подписки партнёров на регулярные поставки. Заказы создаются автоматически после того, как партнёр подтвердит поставку в своём кабинете. Здесь — обзор по партнёрам.</p>
+      <div style="margin-bottom:14px;"><button class="btn btn-line btn-sm" id="subsReload">Обновить список</button></div>
+      <div id="subsView"><p class="hint">Нажмите «Обновить список».</p></div>
     </div>
   </section>
 
@@ -4393,7 +4415,8 @@ document.querySelectorAll('.tab').forEach(function(tab){
     tab.classList.add('active');document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
     if(tab.dataset.tab==='price')renderCatalog();
     else if(tab.dataset.tab==='partners')renderPartners();
-    else if(tab.dataset.tab==='calendar')renderCalendar();
+    else if(tab.dataset.tab==='calendar'){renderCalendar();initCalSave();}
+    else if(tab.dataset.tab==='subs'){loadAdminSubs();var sr=document.getElementById('subsReload');if(sr&&!sr._b){sr._b=1;sr.addEventListener('click',loadAdminSubs);}}
   });
 });
 document.querySelectorAll('#langSeg .seg-b').forEach(function(b){
@@ -4985,7 +5008,13 @@ function renderVisModal(){
 function openVisModal(){renderVisModal();document.getElementById('visModal').style.display='flex';}
 /* ---- календарь нерабочих дней ---- */
 var calYear, calMonth;
+var HOL_TYPES={weekend:'Выходной',holiday:'Праздничные выходные',maintenance:'Технические работы'};
+var HOL_COLORS={weekend:'#47A2DA',holiday:'#c0577e',maintenance:'#c98a2b'};
 function calYmd(y,m,d){return y+'-'+(''+(m+1)).padStart(2,'0')+'-'+(''+d).padStart(2,'0');}
+function holDate(h){return (typeof h==='string')?h:(h&&h.date)||'';}
+function holType(h){return (typeof h==='string')?'holiday':((h&&h.type)||'holiday');}
+function holFind(ymd){for(var i=0;i<holidays.length;i++)if(holDate(holidays[i])===ymd)return i;return -1;}
+function markCalDirty(){var st=document.getElementById('calStatus');if(st){st.textContent='\u25cf есть несохранённые изменения';st.style.color='#c98a2b';}}
 function renderCalendar(){
   var wrap=document.getElementById('calWrap');if(!wrap)return;
   var now=new Date();if(calYear==null){calYear=now.getFullYear();calMonth=now.getMonth();}
@@ -4994,44 +5023,88 @@ function renderCalendar(){
   var first=new Date(calYear,calMonth,1);var startDow=(first.getDay()+6)%7;
   var days=new Date(calYear,calMonth+1,0).getDate();
   var today=new Date();today.setHours(0,0,0,0);
-  var h='<div class="cal-head"><button class="btn btn-line btn-sm" id="calPrev">←</button><b>'+MN[calMonth]+' '+calYear+'</b><button class="btn btn-line btn-sm" id="calNext">→</button></div>';
+  var h='<div class="cal-head">'+
+    '<div style="display:flex;gap:5px;"><button class="btn btn-line btn-sm" id="calPY" title="Год назад">\u00ab</button><button class="btn btn-line btn-sm" id="calPrev" title="Месяц назад">\u2190</button></div>'+
+    '<b>'+MN[calMonth]+' '+calYear+'</b>'+
+    '<div style="display:flex;gap:5px;"><button class="btn btn-line btn-sm" id="calNext" title="Месяц вперёд">\u2192</button><button class="btn btn-line btn-sm" id="calNY" title="Год вперёд">\u00bb</button></div></div>';
   h+='<div class="cal-grid">';
   DOW.forEach(function(d){h+='<div class="cal-dow">'+d+'</div>';});
   for(var i=0;i<startDow;i++)h+='<div class="cal-day empty"></div>';
   for(var d=1;d<=days;d++){
     var dt=new Date(calYear,calMonth,d);dt.setHours(0,0,0,0);
     var ymd=calYmd(calYear,calMonth,d);
-    var cls='cal-day';var sun=dt.getDay()===0,past=dt<today,hol=holidays.indexOf(ymd)>=0;
+    var cls='cal-day';var sun=dt.getDay()===0,past=dt<today,hi=holFind(ymd);
     if(sun)cls+=' sun';else if(past)cls+=' past';
-    if(hol)cls+=' hol';
     if(dt.getTime()===today.getTime())cls+=' today';
-    var clickable=!sun&&!past;
-    h+='<div class="'+cls+'"'+(clickable?' data-ymd="'+ymd+'"':'')+'>'+d+'</div>';
+    var clickable=!sun&&!past,style='';
+    if(hi>=0){var tp=holType(holidays[hi]),col=HOL_COLORS[tp]||'#47A2DA';style=' style="background:'+col+';color:#fff;border-color:'+col+';font-weight:700;"';}
+    h+='<div class="'+cls+'"'+style+(clickable?' data-ymd="'+ymd+'"':'')+'>'+d+'</div>';
   }
   h+='</div>';
   wrap.innerHTML=h;
   document.getElementById('calPrev').addEventListener('click',function(){calMonth--;if(calMonth<0){calMonth=11;calYear--;}renderCalendar();});
   document.getElementById('calNext').addEventListener('click',function(){calMonth++;if(calMonth>11){calMonth=0;calYear++;}renderCalendar();});
+  document.getElementById('calPY').addEventListener('click',function(){calYear--;renderCalendar();});
+  document.getElementById('calNY').addEventListener('click',function(){calYear++;renderCalendar();});
   wrap.querySelectorAll('[data-ymd]').forEach(function(c){c.addEventListener('click',function(){
-    var y=this.dataset.ymd,k=holidays.indexOf(y);
-    if(k>=0)holidays.splice(k,1);else holidays.push(y);
-    holidays.sort();saveHolidays();renderCalendar();renderCalList();
+    var y=this.dataset.ymd,k=holFind(y);
+    if(k>=0)holidays.splice(k,1);
+    else{var tp=document.getElementById('calType').value;holidays.push({date:y,type:tp});}
+    holidays.sort(function(a,b){return holDate(a)<holDate(b)?-1:1;});
+    markCalDirty();renderCalendar();renderCalList();
   });});
   renderCalList();
 }
 function renderCalList(){
   var w=document.getElementById('calList');if(!w)return;
   var today=new Date();today.setHours(0,0,0,0);
-  var future=holidays.filter(function(y){return new Date(y+'T00:00:00')>=today;}).sort();
+  var future=holidays.filter(function(hh){return new Date(holDate(hh)+'T00:00:00')>=today;})
+    .sort(function(a,b){return holDate(a)<holDate(b)?-1:1;});
   if(!future.length){w.innerHTML='<p class="hint">Нерабочие дни не отмечены (кроме воскресений).</p>';return;}
   var h='<div class="cat-title" style="margin-top:0;">Отмеченные нерабочие дни</div>';
-  future.forEach(function(y){var dt=new Date(y+'T00:00:00');
+  future.forEach(function(hh){var y=holDate(hh),tp=holType(hh),dt=new Date(y+'T00:00:00');
     var s=(''+dt.getDate()).padStart(2,'0')+'.'+(''+(dt.getMonth()+1)).padStart(2,'0')+'.'+dt.getFullYear();
-    h+='<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="flex:1;">'+s+'</span>'+
+    h+='<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);">'+
+       '<span style="width:11px;height:11px;border-radius:50%;background:'+(HOL_COLORS[tp]||'#47A2DA')+';flex:none;"></span>'+
+       '<span style="flex:1;">'+s+' <span class="hint">\u00b7 '+(HOL_TYPES[tp]||tp)+'</span></span>'+
        '<button class="btn btn-line btn-sm cal-rm" data-y="'+y+'">Убрать</button></div>';});
   w.innerHTML=h;
   w.querySelectorAll('.cal-rm').forEach(function(b){b.addEventListener('click',function(){
-    var k=holidays.indexOf(this.dataset.y);if(k>=0){holidays.splice(k,1);saveHolidays();renderCalendar();}});});
+    var k=holFind(this.dataset.y);if(k>=0){holidays.splice(k,1);markCalDirty();renderCalendar();}});});
+}
+function initCalSave(){var b=document.getElementById('calSave');if(b&&!b._b){b._b=1;b.addEventListener('click',function(){
+  saveHolidays();var st=document.getElementById('calStatus');if(st){st.textContent='\u2713 сохранено, партнёры увидят баннер';st.style.color='#2c7a4b';}
+  toast('Календарь сохранён');});}}
+/* ---- админ: регулярные поставки ---- */
+var SUBS_ADMIN=[];
+var SUB_DOW=['','Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+function loadAdminSubs(){
+  var w=document.getElementById('subsView');if(w)w.innerHTML='<p class="hint">Загрузка…</p>';
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({master:MASTER,subsAll:true})})
+    .then(function(r){return r.json();}).then(function(j){SUBS_ADMIN=(j&&j.ok&&Array.isArray(j.subscriptions))?j.subscriptions:[];renderAdminSubs();})
+    .catch(function(){var w=document.getElementById('subsView');if(w)w.innerHTML='<p class="hint">Не удалось загрузить. Проверьте облако.</p>';});
+}
+function renderAdminSubs(){
+  var w=document.getElementById('subsView');if(!w)return;
+  if(!SUBS_ADMIN.length){w.innerHTML='<p class="hint">Регулярных поставок пока нет.</p>';return;}
+  var byP={};SUBS_ADMIN.forEach(function(s){var k=s.partner||s.partner_id||'—';(byP[k]=byP[k]||[]).push(s);});
+  var h='';
+  Object.keys(byP).forEach(function(pn){
+    h+='<div class="cat-title">'+esc(pn)+'</div>';
+    byP[pn].forEach(function(s){
+      var days=(s.days||[]).slice().sort(function(a,b){return a-b;}).map(function(n){return SUB_DOW[n]||n;}).join(', ');
+      var conf=s.confirmed||{},ordered=0,skipped=0;Object.keys(conf).forEach(function(k){if(conf[k]==='ordered')ordered++;else if(conf[k]==='skipped')skipped++;});
+      h+='<div style="border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px;'+(s.active?'':'opacity:.6;')+'">'+
+         '<div style="display:flex;align-items:center;gap:8px;"><b>'+(s.active?'🔁':'⏸')+' '+esc(days||'—')+'</b>'+(s.time?' <span class="hint">· '+esc(s.time)+'</span>':'')+
+         '<span class="hint" style="margin-left:auto;">'+(s.active?'активна':'на паузе')+'</span></div>';
+      (s.items||[]).forEach(function(it){h+='<div style="font-size:13px;color:#55544c;padding:2px 0;">• '+esc(it.name)+(it.weight?' ('+esc(it.weight)+')':'')+' — '+esc(it.qty)+' шт</div>';});
+      if(s.address)h+='<div class="hint" style="margin-top:5px;">Адрес: '+esc(s.address)+'</div>';
+      if(s.contact||s.phone)h+='<div class="hint">Контакт: '+esc(s.contact||'—')+(s.phone?' · '+esc(s.phone):'')+'</div>';
+      h+='<div class="hint" style="margin-top:5px;">Заказано поставок: '+ordered+' · пропущено: '+skipped+'</div>';
+      h+='</div>';
+    });
+  });
+  w.innerHTML=h;
 }
 /* ---- персональная настройка кабинета партнёра ---- */
 var pcfgPid='', pcfgCatSeq=[], pcfgGroups={}, pcfgHidden=[];
@@ -5284,6 +5357,15 @@ function cloudComment(orderId,text,internal){
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,comment:text,internal:!!internal,order_id:orderId})}).then(function(r){return r.json();});
 }
+var ORD_DOC={predracun:'Предсчёт (predračun)',otpremnica:'Отпремница',invoice:'Счёт',other:'Документ'};
+function cloudOrderDoc(orderId,type,title,url){
+  return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({master:MASTER,orderDoc:true,order_id:orderId,docType:type,docTitle:title,docUrl:url})}).then(function(r){return r.json();});
+}
+function cloudOrderDocDel(orderId,ts){
+  return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({master:MASTER,orderDocDel:true,order_id:orderId,docTs:ts})}).then(function(r){return r.json();});
+}
 function cloudEditOrder(orderId,items,total){
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,editOrder:true,order_id:orderId,items:items,total:total})}).then(function(r){return r.json();});
@@ -5363,6 +5445,20 @@ function renderAdminOrders(){
          '<button class="btn btn-line btn-sm c-int">Внутр.</button>'+
          '<button class="btn btn-primary btn-sm c-ext">Партнёру</button></div>';
       h+='<div style="margin-top:10px;"><button class="btn btn-line btn-sm o-edit">✏️ Редактировать позиции</button></div>';
+      h+='<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:11px;">'+
+         '<div class="lbl" style="margin-bottom:6px;">Документы заказа</div>';
+      if((o.docs||[]).length){
+        o.docs.forEach(function(dc){var dt2='';try{dt2=new Date(dc.ts).toLocaleDateString('ru-RU');}catch(e){}
+          h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">'+
+             '<span style="flex:1;"><b>'+esc(ORD_DOC[dc.type]||dc.type)+'</b>'+(dc.title?' · '+esc(dc.title):'')+'</span>'+
+             (dc.url?'<a href="'+esc(dc.url)+'" target="_blank" rel="noopener" class="btn btn-line btn-sm" style="text-decoration:none;">Открыть</a>':'')+
+             '<button class="btn btn-line btn-sm danger od-del" data-ts="'+esc(dc.ts)+'">✕</button></div>';});
+      }else h+='<div class="hint" style="margin-bottom:6px;">Документов пока нет. Predračun прикрепляют после подтверждения, отпремницу — после отгрузки.</div>';
+      h+='<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center;">'+
+         '<select class="inp od-type" style="width:auto;font-size:13px;padding:7px 10px;"><option value="predracun">Предсчёт (predračun)</option><option value="otpremnica">Отпремница</option><option value="invoice">Счёт</option><option value="other">Документ</option></select>'+
+         '<input class="inp od-title" placeholder="Название (необяз.)" style="flex:1;min-width:120px;font-size:13px;">'+
+         '<input class="inp od-url" placeholder="https://drive.google.com/…" style="flex:2;min-width:160px;font-size:13px;">'+
+         '<button class="btn btn-primary btn-sm od-add">Прикрепить</button></div></div>';
       h+='</div>';
     }
     // строка статуса: смена по кнопке «Сохранить», а не сразу
@@ -5415,6 +5511,14 @@ function renderAdminOrders(){
     if(det)det.addEventListener('click',function(){openAdminOrder=(openAdminOrder===id?'':id);renderAdminOrders();});
     var edit=card.querySelector('.o-edit');
     if(edit)edit.addEventListener('click',function(){editingOrder=id;editItems=(o.items||[]).map(function(x){return {name:x.name,weight:x.weight,uom:x.uom,qty:Number(x.qty)||0,_unit:(x.sum&&x.qty?x.sum/x.qty:0)};});renderAdminOrders();});
+    var odAdd=card.querySelector('.od-add');
+    if(odAdd)odAdd.addEventListener('click',function(){
+      var tp=card.querySelector('.od-type').value,ti=card.querySelector('.od-title').value.trim(),u=card.querySelector('.od-url').value.trim();
+      if(!u){toast('Вставьте ссылку на документ');return;}
+      odAdd.disabled=true;odAdd.textContent='…';
+      cloudOrderDoc(id,tp,ti,u).then(function(j){if(j&&j.ok){o.docs=(o.docs||[]).concat([{ts:new Date().toISOString(),type:tp,title:ti,url:u}]);toast('Документ прикреплён');renderAdminOrders();}else{toast('Не удалось');odAdd.disabled=false;odAdd.textContent='Прикрепить';}}).catch(function(){toast('Ошибка');odAdd.disabled=false;odAdd.textContent='Прикрепить';});});
+    card.querySelectorAll('.od-del').forEach(function(b){b.addEventListener('click',function(){
+      var ts=this.dataset.ts;cloudOrderDocDel(id,ts).then(function(j){if(j&&j.ok){o.docs=(o.docs||[]).filter(function(d){return d.ts!==ts;});renderAdminOrders();}else toast('Не удалось');}).catch(function(){toast('Ошибка');});});});
     var ci=card.querySelector('.c-int'),ce=card.querySelector('.c-ext'),ct=card.querySelector('.c-text');
     function addC(internal){if(!ct||!ct.value.trim())return;var text=ct.value.trim();ci.disabled=ce.disabled=true;
       cloudComment(id,text,internal).then(function(j){if(j&&j.ok){o.comments=(o.comments||[]).concat([{ts:new Date().toISOString(),text:text,internal:internal,author:'admin'}]);toast('Комментарий добавлен');renderAdminOrders();}else{toast('Не удалось');ci.disabled=ce.disabled=false;}}).catch(function(){toast('Ошибка');ci.disabled=ce.disabled=false;});}
