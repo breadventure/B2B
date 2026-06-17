@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>BreadVenture — кабинет партнёра</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Wix+Madefor+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--cream:#F4F3E9;--blue:#47A2DA;--blue-d:#2f87bd;--dark:#1D1D1B;--muted:#8a8980;--line:#e6e4d8;--yellow:#FFE98D;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Wix Madefor Text',sans-serif;background:var(--cream);color:var(--dark);line-height:1.5;-webkit-text-size-adjust:100%;}
+  .wrap{max-width:880px;margin:0 auto;padding:20px 18px 140px;}
+  header{display:flex;align-items:center;gap:14px;border-bottom:2px solid var(--dark);padding:12px 0 16px;}
+  .logo{width:44px;height:44px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Instrument Serif',serif;font-style:italic;font-size:24px;flex:0 0 auto;}
+  h1{font-family:'Instrument Serif',serif;font-style:italic;font-size:27px;line-height:1.05;}
+  .tag{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .who{margin-left:auto;text-align:right;font-size:12.5px;color:var(--muted);}
+  .who a{color:var(--blue-d);cursor:pointer;text-decoration:none;}
+  nav{display:flex;gap:8px;margin:16px 0 6px;}
+  nav button{flex:1;border:1px solid var(--line);background:#fff;border-radius:11px;padding:11px;font-family:inherit;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;}
+  nav button.on{background:var(--dark);color:#fff;border-color:var(--dark);}
+  .note{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 15px;font-size:13px;color:#55544c;margin:14px 0;}
+  .sec-title{font-family:'Instrument Serif',serif;font-style:italic;font-size:21px;margin:22px 0 10px;}
+  .cat{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--blue-d);margin:18px 0 8px;}
+  .row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:13px;padding:12px 14px;margin-bottom:9px;}
+  .row .info{flex:1;min-width:0;}
+  .row .nm{font-weight:600;font-size:14.5px;}
+  .row .w{color:var(--muted);font-weight:400;font-size:12.5px;margin-left:6px;}
+  .row .pr{font-size:12.5px;color:var(--muted);margin-top:3px;}
+  .row .pr b{color:var(--dark);}
+  .qty{display:flex;align-items:center;gap:6px;flex:0 0 auto;}
+  .qty button{width:32px;height:34px;border:1px solid var(--line);background:var(--cream);border-radius:9px;font-size:18px;cursor:pointer;color:var(--dark);}
+  .qty input{width:52px;height:34px;text-align:center;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:15px;}
+  .field{margin-bottom:13px;}
+  .lbl{display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:5px;}
+  .inp{width:100%;border:1px solid var(--line);border-radius:11px;padding:11px 13px;font-family:inherit;font-size:15px;background:#fff;}
+  .inp:focus{outline:none;border-color:var(--blue);}
+  textarea.inp{resize:vertical;min-height:60px;}
+  .form-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;}
+  .chk{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;padding:8px 0;}
+  .chk .box{width:22px;height:22px;border:2px solid var(--line);border-radius:7px;flex:0 0 auto;position:relative;}
+  .chk.on .box{background:var(--blue);border-color:var(--blue);}
+  .chk.on .box:after{content:'✓';color:#fff;position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);box-shadow:0 -4px 20px rgba(0,0,0,.06);padding:12px 18px;z-index:30;}
+  .bar-in{max-width:880px;margin:0 auto;display:flex;align-items:center;gap:14px;}
+  .bar .sum{flex:1;}
+  .bar .sum .big{font-size:20px;font-weight:700;}
+  .bar .sum .sm{font-size:12px;color:var(--muted);}
+  .btn{border:none;border-radius:12px;padding:14px 22px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;background:var(--blue);color:#fff;}
+  .btn:disabled{background:#c9c7bd;cursor:default;}
+  .btn-line{background:#fff;border:1px solid var(--line);color:var(--dark);}
+  .deliv{font-size:13px;border-radius:11px;padding:10px 13px;margin-top:12px;display:flex;gap:9px;align-items:flex-start;}
+  .deliv.ok{background:#e7f5ec;color:#2c7a4b;}
+  .deliv.warn{background:#fdf3e0;color:#9a6b1e;}
+  .deliv.pay{background:#eef5fb;color:var(--blue-d);}
+  .totals{background:var(--cream);border:1px solid var(--line);border-radius:13px;padding:14px 16px;margin-top:14px;}
+  .trow{display:flex;justify-content:space-between;font-size:13.5px;padding:3px 0;color:#55544c;}
+  .trow.g{font-weight:700;font-size:16px;color:var(--dark);border-top:1px solid var(--line);margin-top:6px;padding-top:9px;}
+  .loading,.empty{text-align:center;color:var(--muted);padding:46px 20px;font-size:14.5px;}
+  .ok-screen{text-align:center;padding:54px 20px;}
+  .ok-screen .big{font-family:'Instrument Serif',serif;font-style:italic;font-size:32px;margin-bottom:12px;}
+  .ok-screen .ic{font-size:46px;margin-bottom:12px;}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px;}
+  .req{color:#d9534f;}
+  .ocard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:11px;}
+  .ocard .top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ocard .onum{font-weight:700;font-size:15px;}
+  .ocard .odate{font-size:12.5px;color:var(--muted);}
+  .ocard .oitems{font-size:13px;color:#55544c;margin-top:8px;white-space:pre-line;}
+  .ocard .obottom{display:flex;align-items:center;gap:12px;margin-top:11px;flex-wrap:wrap;}
+  .ocard .ototal{font-weight:700;}
+  .st{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.02em;}
+  .st-submitted{background:#eef5fb;color:var(--blue-d);}
+  .st-confirmed{background:#e7f5ec;color:#2c7a4b;}
+  .st-in_production,.st-packed{background:#fdf3e0;color:#9a6b1e;}
+  .st-out_for_delivery{background:#eef5fb;color:var(--blue-d);}
+  .st-delivered{background:#e7f5ec;color:#2c7a4b;}
+  .st-cancelled{background:#f0efe9;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <header>
+    <div class="logo">B</div>
+    <div><h1 id="hTitle">Кабинет партнёра</h1><div class="tag">BreadVenture · ремесленная пекарня · Белград</div></div>
+    <div class="who" id="who" style="display:none;"></div>
+  </header>
+  <div id="content"><div class="loading">Загрузка…</div></div>
+</div>
+
+<div class="bar" id="bar" style="display:none;">
+  <div class="bar-in">
+    <div class="sum"><div class="big" id="barSum">0 дин.</div><div class="sm" id="barSub">выберите позиции</div></div>
+    <button class="btn" id="sendBtn" disabled>Отправить заказ</button>
+  </div>
+</div>
+
+<script>
+/* ВСТАВЬТЕ СЮДА тот же URL веб-приложения Apps Script, что и в B2B-инструменте */
+var GAS_URL='https://script.google.com/macros/s/AKfycbxec2oCFdaE1hEwCo_GGIyThwihoYk1IOChYUcxLHPqBZU4lzB_d06tav85dPFmGX1o/exec';
+
+var PDV_DEFAULT=10, FREE_FROM=7000, MIN_DELIVERY=2500, DELIVERY=350;
+var catalog=[], qtyMap={}, pickup=false, CODE='', PARTNER='', ORDERS=[], DOCS=[], VIEW='new', openOrder='';
+try{CODE=localStorage.getItem('bv_partner_code')||'';}catch(e){}
+
+var DOC_T={invoice:'Счёт',delivery_note:'Накладная',terms:'Условия',contract:'Договор',certificate:'Сертификат',offer:'КП',other:'Документ'};
+
+var ST={submitted:'Новый',confirmed:'Подтверждён',in_production:'В производстве',packed:'Собран',out_for_delivery:'В доставке',delivered:'Доставлен',cancelled:'Отменён'};
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(n){return (Math.round(n*100)/100).toLocaleString('ru-RU',{maximumFractionDigits:2});}
+function itemPdv(it){var v=(it&&it.pdv!=null&&it.pdv!=='')?Number(it.pdv):PDV_DEFAULT;return isNaN(v)?PDV_DEFAULT:v;}
+function itemUnit(it){return (it&&it.uom)?it.uom:'шт';}
+function discountFor(it,qty){if(!it||!it.tiers||!it.tiers.length)return 0;var d=0,best=-1;
+  it.tiers.forEach(function(t){if(qty>=t.min&&t.min>best){best=t.min;d=Number(t.disc)||0;}});return d;}
+function deliveryInfo(net){if(pickup)return {cost:0,mode:'pickup'};
+  if(net<MIN_DELIVERY)return {cost:0,mode:'need'};
+  if(net>=FREE_FROM)return {cost:0,mode:'free'};
+  return {cost:DELIVERY,mode:'paid'};}
+function catList(){var seen={},arr=[];catalog.forEach(function(it){var c=it.cat||'Без категории';if(!seen[c]){seen[c]=1;arr.push(c);}});return arr;}
+function itemByNameWeight(name,weight){var r=null;catalog.forEach(function(it){if(it.name===name&&(it.weight||'')===(weight||''))r=it;});return r;}
+
+function compute(){
+  var gross=0,base=0,pdvByRate={},cnt=0;
+  catalog.forEach(function(it){var q=Math.max(0,Number(qtyMap[it.id])||0);if(!q)return;cnt++;
+    var disc=discountFor(it,q);var g=it.retail*(1-disc/100)*q;var rate=itemPdv(it);
+    base+=it.retail*q;gross+=g;var pv=g-g/(1+rate/100);pdvByRate[rate]=(pdvByRate[rate]||0)+pv;});
+  var pdv=0;for(var k in pdvByRate)pdv+=pdvByRate[k];
+  var net=gross-pdv,di=deliveryInfo(net);
+  return {base:base,gross:gross,net:net,pdv:pdv,pdvByRate:pdvByRate,save:base-gross,
+          delivery:di.cost,mode:di.mode,grand:gross+di.cost,count:cnt};
+}
+
+/* ---------- навигация ---------- */
+function setView(v){VIEW=v;
+  document.getElementById('who').style.display='block';
+  document.getElementById('who').innerHTML=esc(PARTNER)+' · <a id="logout">выйти</a>';
+  document.getElementById('logout').addEventListener('click',logout);
+  if(v==='new')renderNew();else if(v==='orders')renderOrders();else renderDocs();
+}
+function navHtml(active){
+  return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">Новый заказ</button>'+
+         '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">Мои заказы'+(ORDERS.length?' ('+ORDERS.length+')':'')+'</button>'+
+         '<button data-v="docs" class="'+(active==='docs'?'on':'')+'">Документы'+(DOCS.length?' ('+DOCS.length+')':'')+'</button></nav>';
+}
+function bindNav(){document.querySelectorAll('nav button').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.v);});});}
+function logout(){try{localStorage.removeItem('bv_partner_code');}catch(e){}CODE='';PARTNER='';catalog=[];ORDERS=[];qtyMap={};
+  document.getElementById('who').style.display='none';document.getElementById('bar').style.display='none';showLogin();}
+
+/* ---------- новый заказ ---------- */
+function renderNew(){
+  document.getElementById('hTitle').textContent='Новый заказ';
+  var c=document.getElementById('content');
+  if(!catalog.length){c.innerHTML=navHtml('new')+'<div class="empty">Прайс пока не заполнен. Свяжитесь с пекарней.</div>';bindNav();document.getElementById('bar').style.display='none';return;}
+  var h=navHtml('new');
+  h+='<div class="note">Выберите позиции и количество, укажите дату доставки — внизу появится итог. Цены с учётом PDV; скидка по объёму считается автоматически. Доставка по Белграду 350 дин. (бесплатно от 7000 дин. без PDV), менее 2500 дин. — только самовывоз. Заказ не позднее 48 ч до поставки, по воскресеньям отгрузки нет.</div>';
+  catList().forEach(function(cat){
+    h+='<div class="cat">'+esc(cat)+'</div>';
+    catalog.filter(function(it){return (it.cat||'Без категории')===cat;}).forEach(function(it){
+      var q=Math.max(0,Number(qtyMap[it.id])||0),disc=discountFor(it,q),unit=it.retail*(1-disc/100),u=itemUnit(it);
+      h+='<div class="row" data-id="'+it.id+'"><div class="info">'+
+         '<div class="nm">'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</div>'+
+         '<div class="pr">'+(q>0?'<b>'+fmt(unit)+' дин./'+esc(u)+'</b>'+(disc>0?' (−'+fmt(disc)+'%)':'')+' · '+fmt(unit*q)+' дин.':'<b>'+fmt(it.retail)+' дин./'+esc(u)+'</b>')+'</div>'+
+         '</div><div class="qty"><button data-act="m">−</button>'+
+         '<input type="number" min="0" step="1" value="'+q+'" class="qi"><button data-act="p">+</button></div></div>';
+    });
+  });
+  h+='<div id="totalsWrap"></div>';
+  h+='<div class="sec-title">Данные доставки</div><div class="form-card">'+
+     '<div class="field"><label class="lbl">Контактное лицо <span class="req">*</span></label><input class="inp" id="fContact" placeholder="Имя"></div>'+
+     '<div class="field"><label class="lbl">Телефон <span class="req">*</span></label><input class="inp" id="fPhone" placeholder="+381 …" inputmode="tel"></div>'+
+     '<div class="field"><label class="lbl">Дата доставки</label><input class="inp" id="fDate" type="date"><div class="hint">Не ранее чем через 48 часов. По воскресеньям отгрузки нет.</div></div>'+
+     '<div class="chk" id="fPickup"><span class="box"></span><span>Самовывоз из пекарни (без доставки)</span></div>'+
+     '<div class="field" style="margin-top:13px;"><label class="lbl">Комментарий</label><textarea class="inp" id="fComment" placeholder="Пожелания к заказу"></textarea></div>'+
+     '</div>';
+  c.innerHTML=h;bindNav();bindRows();
+  var d=new Date();d.setDate(d.getDate()+2);document.getElementById('fDate').min=d.toISOString().slice(0,10);
+  document.getElementById('fPickup').classList.toggle('on',pickup);
+  document.getElementById('fPickup').addEventListener('click',function(){pickup=!pickup;this.classList.toggle('on',pickup);renderTotals();});
+  renderTotals();
+}
+function bindRows(){
+  document.querySelectorAll('.row').forEach(function(row){
+    var id=row.dataset.id,inp=row.querySelector('.qi');
+    row.querySelectorAll('.qty button').forEach(function(b){
+      b.addEventListener('click',function(){var v=Math.max(0,Number(qtyMap[id])||0);v=this.dataset.act==='p'?v+1:Math.max(0,v-1);
+        qtyMap[id]=v;inp.value=v;updateRow(row,id);renderTotals();});});
+    inp.addEventListener('input',function(){qtyMap[id]=Math.max(0,Number(this.value)||0);updateRow(row,id);renderTotals();});
+  });
+}
+function updateRow(row,id){var it=itemByIdLocal(id);if(!it)return;
+  var q=Math.max(0,Number(qtyMap[id])||0),disc=discountFor(it,q),unit=it.retail*(1-disc/100),u=itemUnit(it);
+  row.querySelector('.pr').innerHTML=q>0?'<b>'+fmt(unit)+' дин./'+esc(u)+'</b>'+(disc>0?' (−'+fmt(disc)+'%)':'')+' · '+fmt(unit*q)+' дин.':'<b>'+fmt(it.retail)+' дин./'+esc(u)+'</b>';}
+function itemByIdLocal(id){var r=null;catalog.forEach(function(x){if(x.id===id)r=x;});return r;}
+function renderTotals(){
+  var c=compute(),w=document.getElementById('totalsWrap');if(!w)return;
+  if(c.count>0){
+    var rates=Object.keys(c.pdvByRate).map(Number).sort(function(a,b){return a-b;});
+    var t='<div class="totals">';
+    t+='<div class="trow"><span>Базовая (с PDV)</span><span>'+fmt(c.base)+' дин.</span></div>';
+    if(c.save>0)t+='<div class="trow"><span>Скидка по объёму</span><span>−'+fmt(c.save)+' дин.</span></div>';
+    t+='<div class="trow"><span>Стоимость заказа (с PDV)</span><span>'+fmt(c.gross)+' дин.</span></div>';
+    rates.forEach(function(rt){t+='<div class="trow"><span>в т.ч. PDV '+rt+'%</span><span>'+fmt(c.pdvByRate[rt])+' дин.</span></div>';});
+    t+='<div class="trow"><span>Без PDV</span><span>'+fmt(c.net)+' дин.</span></div>';
+    t+='<div class="trow"><span>'+(c.mode==='pickup'||c.mode==='need'?'Самовывоз':'Доставка')+'</span><span>'+fmt(c.delivery)+' дин.</span></div>';
+    t+='<div class="trow g"><span>Итого к оплате</span><span>'+fmt(c.grand)+' дин.</span></div></div>';
+    var d='';
+    if(c.mode==='pickup')d='<div class="deliv ok"><span>🏠</span><div>Самовывоз из пекарни — доставка не начисляется.</div></div>';
+    else if(c.mode==='need')d='<div class="deliv warn"><span>⚠</span><div>Сумма без PDV меньше 2500 дин. — доступен только самовывоз. До платной доставки не хватает '+fmt(MIN_DELIVERY-c.net)+' дин.</div></div>';
+    else if(c.mode==='free')d='<div class="deliv ok"><span>✓</span><div>Бесплатная доставка по Белграду (сумма без PDV от 7000 дин.).</div></div>';
+    else d='<div class="deliv pay"><span>🚲</span><div>Доставка 350 дин. До бесплатной не хватает '+fmt(FREE_FROM-c.net)+' дин. (без PDV).</div></div>';
+    w.innerHTML=t+d;
+  }else w.innerHTML='';
+  document.getElementById('barSum').textContent=fmt(c.grand)+' дин.';
+  document.getElementById('barSub').textContent=c.count>0?(c.count+' поз. · '+(c.mode==='pickup'||c.mode==='need'?'самовывоз':'доставка')):'выберите позиции';
+  document.getElementById('sendBtn').disabled=c.count<1;
+  document.getElementById('bar').style.display=(VIEW==='new')?'block':'none';
+}
+
+/* ---------- мои заказы ---------- */
+function renderOrders(){
+  document.getElementById('hTitle').textContent='Мои заказы';
+  document.getElementById('bar').style.display='none';
+  var c=document.getElementById('content');var h=navHtml('orders');
+  if(!ORDERS.length){h+='<div class="empty">У вас пока нет заказов.<br>Перейдите в «Новый заказ», чтобы создать первый.</div>';c.innerHTML=h;bindNav();return;}
+  ORDERS.forEach(function(o){
+    var st=o.status||'submitted';
+    var items=(o.items||[]).map(function(it){return '• '+it.name+(it.weight?' ('+it.weight+')':'')+' — '+it.qty+' '+(it.uom||'шт');}).join('\n');
+    var dt='';try{dt=new Date(o.created).toLocaleDateString('ru-RU');}catch(e){}
+    var open=openOrder===o.order_id;
+    h+='<div class="ocard"><div class="top"><span class="onum">'+esc(o.order_id||'')+'</span>'+
+       '<span class="st st-'+st+'">'+esc(ST[st]||st)+'</span><span class="odate" style="margin-left:auto;">'+esc(dt)+'</span></div>'+
+       (o.date?'<div class="odate" style="margin-top:6px;">Доставка: '+esc(o.date)+'</div>':'')+
+       '<div class="oitems">'+esc(items)+'</div>';
+    if(open){
+      h+='<div style="border-top:1px solid var(--line);margin-top:11px;padding-top:11px;">';
+      h+='<div class="lbl">История статуса</div>';
+      (o.events||[]).forEach(function(ev){var et='';try{et=new Date(ev.ts).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){}
+        h+='<div style="font-size:13px;color:#55544c;padding:2px 0;">'+esc(ST[ev.status]||ev.status)+' <span class="hint">· '+esc(et)+'</span></div>';});
+      var ext=(o.comments||[]).filter(function(x){return !x.internal;});
+      if(ext.length){h+='<div class="lbl" style="margin-top:10px;">Комментарии пекарни</div>';
+        ext.forEach(function(cm){h+='<div style="font-size:13px;color:#55544c;padding:3px 0;">💬 '+esc(cm.text)+'</div>';});}
+      h+='</div>';
+    }
+    h+='<div class="obottom"><span class="ototal">'+(o.total!==''&&o.total!=null?fmt(o.total)+' дин.':'')+'</span>'+
+       '<button class="btn btn-line det" data-id="'+esc(o.order_id)+'" style="padding:9px 14px;font-size:13px;">'+(open?'Свернуть':'Подробнее')+'</button>'+
+       '<button class="btn btn-line repeat" data-id="'+esc(o.order_id)+'" style="padding:9px 16px;font-size:13.5px;">Повторить</button></div>'+
+       (o.comment?'<div class="hint" style="margin-top:8px;">Ваш комментарий: '+esc(o.comment)+'</div>':'')+'</div>';
+  });
+  c.innerHTML=h;bindNav();
+  c.querySelectorAll('.repeat').forEach(function(b){b.addEventListener('click',function(){repeatOrder(this.dataset.id);});});
+  c.querySelectorAll('.det').forEach(function(b){b.addEventListener('click',function(){openOrder=(openOrder===this.dataset.id?'':this.dataset.id);renderOrders();});});
+}
+function renderDocs(){
+  document.getElementById('hTitle').textContent='Документы';
+  document.getElementById('bar').style.display='none';
+  var c=document.getElementById('content');var h=navHtml('docs');
+  if(!DOCS.length){h+='<div class="empty">Документы появятся здесь после загрузки пекарней.</div>';c.innerHTML=h;bindNav();return;}
+  var groups={};DOCS.forEach(function(d){var t=d.type||'other';(groups[t]=groups[t]||[]).push(d);});
+  Object.keys(groups).forEach(function(t){
+    h+='<div class="cat">'+esc(DOC_T[t]||t)+'</div>';
+    groups[t].forEach(function(d){var dt='';try{dt=new Date(d.created).toLocaleDateString('ru-RU');}catch(e){}
+      h+='<div class="ocard" style="margin-bottom:9px;"><div class="top"><span style="font-weight:600;">'+esc(d.title||DOC_T[t]||'Документ')+'</span>'+
+         (d.version?'<span class="hint">v'+esc(d.version)+'</span>':'')+'<span class="hint" style="margin-left:auto;">'+esc(dt)+'</span></div>'+
+         (d.url?'<div style="margin-top:10px;"><a class="btn" href="'+esc(d.url)+'" target="_blank" rel="noopener" style="display:inline-block;padding:9px 18px;font-size:13.5px;text-decoration:none;">Открыть / скачать</a></div>':'<div class="hint" style="margin-top:6px;">Ссылка не указана</div>')+'</div>';
+    });
+  });
+  c.innerHTML=h;bindNav();
+}
+function repeatOrder(orderId){
+  var o=null;ORDERS.forEach(function(x){if(x.order_id===orderId)o=x;});if(!o)return;
+  qtyMap={};var missing=0;
+  (o.items||[]).forEach(function(it){var found=itemByNameWeight(it.name,it.weight);if(found)qtyMap[found.id]=Math.max(0,Number(it.qty)||0);else missing++;});
+  setView('new');
+  if(missing)alert('Часть позиций из того заказа сейчас недоступна и не добавлена ('+missing+'). Остальное перенесено в новый заказ.');
+}
+
+/* ---------- отправка заказа ---------- */
+function sendOrder(){
+  var c=compute();if(c.count<1)return;
+  var contact=document.getElementById('fContact').value.trim();
+  var phone=document.getElementById('fPhone').value.trim();
+  if(!contact||!phone){alert('Заполните контактное лицо и телефон.');return;}
+  var date=document.getElementById('fDate').value;
+  var comment=document.getElementById('fComment').value.trim();if(pickup)comment=(comment?comment+' · ':'')+'Самовывоз';
+  var items=[];catalog.forEach(function(it){var q=Math.max(0,Number(qtyMap[it.id])||0);if(!q)return;
+    var disc=discountFor(it,q),unit=it.retail*(1-disc/100);
+    items.push({name:it.name,weight:it.weight,qty:q,uom:itemUnit(it),sum:Math.round(unit*q*100)/100});});
+  var order={contact:contact,phone:phone,date:date?new Date(date).toLocaleDateString('ru-RU'):'не указана',
+    comment:comment,items:items,total:Math.round(c.grand*100)/100};
+  var btn=document.getElementById('sendBtn');btn.disabled=true;btn.textContent='Отправляем…';
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({order:order,code:CODE})})
+    .then(function(r){return r.json();})
+    .then(function(j){if(j&&j.ok){qtyMap={};refreshOrders(function(){showOk(j.order_id);});}else throw 'err';})
+    .catch(function(){alert('Не удалось отправить заказ. Проверьте интернет и попробуйте ещё раз.');btn.disabled=false;btn.textContent='Отправить заказ';});
+}
+function refreshOrders(cb){
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({myOrders:CODE})})
+    .then(function(r){return r.json();}).then(function(j){if(j&&j.ok){if(j.orders)ORDERS=j.orders;if(j.documents)DOCS=j.documents;}if(cb)cb();})
+    .catch(function(){if(cb)cb();});
+}
+function showOk(orderId){
+  document.getElementById('bar').style.display='none';
+  document.getElementById('content').innerHTML=
+    '<div class="ok-screen"><div class="ic">🥖</div><div class="big">Заказ принят</div>'+
+    '<p style="color:#55544c;max-width:430px;margin:0 auto;">Номер заказа: <b>'+esc(orderId||'')+'</b>. Мы получили заявку и свяжемся для подтверждения. Статус можно отслеживать в разделе «Мои заказы».</p>'+
+    '<button class="btn" style="margin-top:22px;" id="toOrders">Мои заказы</button></div>';
+  document.getElementById('toOrders').addEventListener('click',function(){setView('orders');});
+}
+document.getElementById('sendBtn').addEventListener('click',sendOrder);
+
+/* ---------- вход по коду ---------- */
+function showLogin(err){
+  document.getElementById('hTitle').textContent='Кабинет партнёра';
+  document.getElementById('content').innerHTML=
+    '<div class="form-card" style="max-width:420px;margin:28px auto;">'+
+    '<div class="sec-title" style="margin-top:0;">Вход для партнёров</div>'+
+    '<p class="hint" style="margin-bottom:14px;">Введите код доступа, который вам выдали в пекарне.</p>'+
+    '<div class="field"><input class="inp" id="codeInp" placeholder="Код доступа" style="text-transform:uppercase;letter-spacing:.1em;font-size:18px;text-align:center;" value="'+esc(CODE)+'"></div>'+
+    (err?'<div class="deliv warn" style="margin-bottom:12px;"><span>⚠</span><div>'+esc(err)+'</div></div>':'')+
+    '<button class="btn" id="loginBtn" style="width:100%;">Войти</button>'+
+    '<p class="hint" style="text-align:center;margin-top:16px;">Нет кода? <a href="#" id="reqLink" style="color:var(--blue-d);">Запросить доступ</a></p></div>';
+  document.getElementById('loginBtn').addEventListener('click',doAuth);
+  document.getElementById('codeInp').addEventListener('keydown',function(e){if(e.key==='Enter')doAuth();});
+  document.getElementById('reqLink').addEventListener('click',function(e){e.preventDefault();showRequest();});
+}
+function applyAuth(j,code){
+  CODE=code;PARTNER=(j.partner&&j.partner.name)||'';
+  try{localStorage.setItem('bv_partner_code',code);}catch(e){}
+  var data=j.data||{};catalog=(data.catalog||[]).filter(function(it){return it&&it.name&&it.retail!=null;});
+  ORDERS=j.orders||[];DOCS=j.documents||[];
+  if(data.settings){var s=data.settings;if(s.free!=null)FREE_FROM=Number(s.free)||FREE_FROM;if(s.minDeliv!=null)MIN_DELIVERY=Number(s.minDeliv)||MIN_DELIVERY;if(s.deliv!=null)DELIVERY=Number(s.deliv)||DELIVERY;}
+  setView('new');
+}
+function doAuth(){
+  var code=document.getElementById('codeInp').value.trim().toUpperCase();if(!code){showLogin('Введите код.');return;}
+  var btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Проверяем…';
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({auth:code})})
+    .then(function(r){return r.json();})
+    .then(function(j){if(j&&j.ok)applyAuth(j,code);else showLogin('Неверный или отключённый код. Проверьте или запросите доступ.');})
+    .catch(function(){showLogin('Нет связи. Попробуйте позже.');});
+}
+function showRequest(){
+  document.getElementById('bar').style.display='none';
+  document.getElementById('content').innerHTML=
+    '<div class="form-card" style="max-width:440px;margin:28px auto;">'+
+    '<div class="sec-title" style="margin-top:0;">Запрос доступа</div>'+
+    '<p class="hint" style="margin-bottom:14px;">Оставьте контакты — пекарня свяжется и выдаст код доступа к прайсу.</p>'+
+    '<div class="field"><label class="lbl">Компания <span class="req">*</span></label><input class="inp" id="rName" placeholder="Название заведения"></div>'+
+    '<div class="field"><label class="lbl">Контактное лицо <span class="req">*</span></label><input class="inp" id="rContact" placeholder="Имя"></div>'+
+    '<div class="field"><label class="lbl">Телефон <span class="req">*</span></label><input class="inp" id="rPhone" placeholder="+381 …" inputmode="tel"></div>'+
+    '<div class="field"><label class="lbl">Комментарий</label><textarea class="inp" id="rComment" placeholder="Что планируете заказывать"></textarea></div>'+
+    '<button class="btn" id="reqBtn" style="width:100%;">Отправить запрос</button>'+
+    '<p class="hint" style="text-align:center;margin-top:14px;"><a href="#" id="backLink" style="color:var(--blue-d);">← у меня уже есть код</a></p></div>';
+  document.getElementById('backLink').addEventListener('click',function(e){e.preventDefault();showLogin();});
+  document.getElementById('reqBtn').addEventListener('click',function(){
+    var name=document.getElementById('rName').value.trim(),contact=document.getElementById('rContact').value.trim(),phone=document.getElementById('rPhone').value.trim();
+    if(!name||!contact||!phone){alert('Заполните компанию, контактное лицо и телефон.');return;}
+    var comment=document.getElementById('rComment').value.trim();var btn=this;btn.disabled=true;btn.textContent='Отправляем…';
+    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({request:{name:name,contact:contact,phone:phone,comment:comment}})})
+      .then(function(r){return r.json();}).then(function(j){
+        if(j&&j.ok)document.getElementById('content').innerHTML='<div class="ok-screen"><div class="ic">🔑</div><div class="big">Запрос отправлен</div><p style="color:#55544c;max-width:420px;margin:0 auto;">Спасибо! Пекарня свяжется с вами и выдаст код доступа.</p><button class="btn" style="margin-top:22px;" onclick="location.reload()">На главную</button></div>';
+        else throw 'err';
+      }).catch(function(){alert('Не удалось отправить. Попробуйте позже.');btn.disabled=false;btn.textContent='Отправить запрос';});
+  });
+}
+
+/* ---------- старт ---------- */
+(function(){
+  if(!GAS_URL){document.getElementById('content').innerHTML='<div class="empty">Страница ещё не подключена к пекарне.<br>Вставьте URL в переменную GAS_URL.</div>';return;}
+  if(CODE){
+    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({auth:CODE})})
+      .then(function(r){return r.json();})
+      .then(function(j){if(j&&j.ok)applyAuth(j,CODE);else{try{localStorage.removeItem('bv_partner_code');}catch(e){}CODE='';showLogin();}})
+      .catch(function(){showLogin('Нет связи. Попробуйте позже.');});
+  }else showLogin();
+})();
+</script>
+</body>
+</html>
