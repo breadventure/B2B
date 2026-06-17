@@ -16,6 +16,9 @@
   .tag{font-size:12.5px;color:var(--muted);margin-top:2px;}
   .who{margin-left:auto;text-align:right;font-size:12.5px;color:var(--muted);}
   .who a{color:var(--blue-d);cursor:pointer;text-decoration:none;}
+  .lang-sw{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:8px;overflow:hidden;vertical-align:middle;}
+  .lang-sw .lng{padding:2px 8px;font-size:12px;font-weight:600;color:var(--muted);background:#fff;}
+  .lang-sw .lng.on{background:var(--blue);color:#fff;}
   nav{display:flex;gap:8px;margin:16px 0 6px;}
   nav button{flex:1;border:1px solid var(--line);background:#fff;border-radius:11px;padding:11px;font-family:inherit;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;}
   nav button.on{background:var(--dark);color:#fff;border-color:var(--dark);}
@@ -100,10 +103,35 @@
 var GAS_URL='https://script.google.com/macros/s/AKfycbxec2oCFdaE1hEwCo_GGIyThwihoYk1IOChYUcxLHPqBZU4lzB_d06tav85dPFmGX1o/exec';
 
 var PDV_DEFAULT=10, FREE_FROM=7000, MIN_DELIVERY=2500, DELIVERY=350;
-var catalog=[], qtyMap={}, pickup=false, CODE='', PARTNER='', ORDERS=[], DOCS=[], VIEW='new', openOrder='';
+var catalog=[], qtyMap={}, pickup=false, CODE='', PARTNER='', ORDERS=[], DOCS=[], TERMS=[], FOOT={}, CATSR={}, VIEW='new', openOrder='';
+var LANG='ru';try{LANG=localStorage.getItem('bv_partner_lang')||'ru';}catch(e){}
 try{CODE=localStorage.getItem('bv_partner_code')||'';}catch(e){}
 
 var DOC_T={invoice:'Счёт',delivery_note:'Накладная',terms:'Условия',contract:'Договор',certificate:'Сертификат',offer:'КП',other:'Документ'};
+var DOC_T_SR={invoice:'Račun',delivery_note:'Otpremnica',terms:'Uslovi',contract:'Ugovor',certificate:'Sertifikat',offer:'Ponuda',other:'Dokument'};
+var TL={
+  ru:{neworder:'Новый заказ',myorders:'Мои заказы',docs:'Документы',info:'Условия',logout:'выйти',
+    submit:'Отправить заказ',pick:'выберите позиции',pos:'поз.',repeat:'Повторить',details:'Подробнее',collapse:'Свернуть',
+    deliv:'Данные доставки',contact:'Контактное лицо',phone:'Телефон',ddate:'Дата доставки',
+    pickup:'Самовывоз из пекарни (без доставки)',comment:'Комментарий',
+    statusHist:'История статуса',bakeryComments:'Комментарии пекарни',yourComment:'Ваш комментарий',
+    noOrders:'У вас пока нет заказов.',noDocs:'Документы появятся здесь после загрузки пекарней.',
+    open:'Открыть / скачать',terms:'Условия сотрудничества',contacts:'Контакты',price:'Актуальный прайс',
+    delivHint:'Не ранее чем через 48 часов. По воскресеньям отгрузки нет.'},
+  sr:{neworder:'Nova porudžbina',myorders:'Moje porudžbine',docs:'Dokumenti',info:'Uslovi',logout:'izlaz',
+    submit:'Pošalji porudžbinu',pick:'izaberite stavke',pos:'stavki',repeat:'Ponovi',details:'Detaljnije',collapse:'Sažmi',
+    deliv:'Podaci o dostavi',contact:'Kontakt osoba',phone:'Telefon',ddate:'Datum isporuke',
+    pickup:'Preuzimanje u pekari (bez dostave)',comment:'Komentar',
+    statusHist:'Istorija statusa',bakeryComments:'Komentari pekare',yourComment:'Vaš komentar',
+    noOrders:'Još nemate porudžbine.',noDocs:'Dokumenti će se pojaviti ovde nakon što ih pekara doda.',
+    open:'Otvori / preuzmi',terms:'Uslovi saradnje',contacts:'Kontakt',price:'Aktuelni cenovnik',
+    delivHint:'Najranije za 48 sati. Nedeljom se ne isporučuje.'}
+};
+function L(k){return (TL[LANG]&&TL[LANG][k])||TL.ru[k]||k;}
+var ST_SR={submitted:'Nova',confirmed:'Potvrđena',in_production:'U pripremi',packed:'Spakovana',out_for_delivery:'U dostavi',delivered:'Isporučena',cancelled:'Otkazana'};
+function stName(s){return LANG==='sr'?(ST_SR[s]||s):(ST[s]||s);}
+function catName(cat){return (LANG==='sr'&&CATSR[cat])?CATSR[cat]:cat;}
+function docType(t){return LANG==='sr'?(DOC_T_SR[t]||t):(DOC_T[t]||t);}
 
 var ST={submitted:'Новый',confirmed:'Подтверждён',in_production:'В производстве',packed:'Собран',out_for_delivery:'В доставке',delivered:'Доставлен',cancelled:'Отменён'};
 
@@ -134,14 +162,16 @@ function compute(){
 /* ---------- навигация ---------- */
 function setView(v){VIEW=v;
   document.getElementById('who').style.display='block';
-  document.getElementById('who').innerHTML=esc(PARTNER)+' · <a id="logout">выйти</a>';
+  document.getElementById('who').innerHTML='<span class="lang-sw"><a class="lng'+(LANG==='ru'?' on':'')+'" data-l="ru">RU</a><a class="lng'+(LANG==='sr'?' on':'')+'" data-l="sr">SR</a></span> · '+esc(PARTNER)+' · <a id="logout">'+L('logout')+'</a>';
   document.getElementById('logout').addEventListener('click',logout);
-  if(v==='new')renderNew();else if(v==='orders')renderOrders();else renderDocs();
+  document.querySelectorAll('.lng').forEach(function(a){a.addEventListener('click',function(){LANG=this.dataset.l;try{localStorage.setItem('bv_partner_lang',LANG);}catch(e){}setView(VIEW);});});
+  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='docs')renderDocs();else renderTerms();
 }
 function navHtml(active){
-  return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">Новый заказ</button>'+
-         '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">Мои заказы'+(ORDERS.length?' ('+ORDERS.length+')':'')+'</button>'+
-         '<button data-v="docs" class="'+(active==='docs'?'on':'')+'">Документы'+(DOCS.length?' ('+DOCS.length+')':'')+'</button></nav>';
+  return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">'+L('neworder')+'</button>'+
+         '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">'+L('myorders')+(ORDERS.length?' ('+ORDERS.length+')':'')+'</button>'+
+         '<button data-v="docs" class="'+(active==='docs'?'on':'')+'">'+L('docs')+(DOCS.length?' ('+DOCS.length+')':'')+'</button>'+
+         '<button data-v="info" class="'+(active==='info'?'on':'')+'">'+L('info')+'</button></nav>';
 }
 function bindNav(){document.querySelectorAll('nav button').forEach(function(b){b.addEventListener('click',function(){setView(this.dataset.v);});});}
 function logout(){try{localStorage.removeItem('bv_partner_code');}catch(e){}CODE='';PARTNER='';catalog=[];ORDERS=[];qtyMap={};
@@ -155,7 +185,7 @@ function renderNew(){
   var h=navHtml('new');
   h+='<div class="note">Выберите позиции и количество, укажите дату доставки — внизу появится итог. Цены с учётом PDV; скидка по объёму считается автоматически. Доставка по Белграду 350 дин. (бесплатно от 7000 дин. без PDV), менее 2500 дин. — только самовывоз. Заказ не позднее 48 ч до поставки, по воскресеньям отгрузки нет.</div>';
   catList().forEach(function(cat){
-    h+='<div class="cat">'+esc(cat)+'</div>';
+    h+='<div class="cat">'+esc(catName(cat))+'</div>';
     catalog.filter(function(it){return (it.cat||'Без категории')===cat;}).forEach(function(it){
       var q=Math.max(0,Number(qtyMap[it.id])||0),disc=discountFor(it,q),unit=it.retail*(1-disc/100),u=itemUnit(it);
       h+='<div class="row" data-id="'+it.id+'"><div class="info">'+
@@ -166,12 +196,12 @@ function renderNew(){
     });
   });
   h+='<div id="totalsWrap"></div>';
-  h+='<div class="sec-title">Данные доставки</div><div class="form-card">'+
-     '<div class="field"><label class="lbl">Контактное лицо <span class="req">*</span></label><input class="inp" id="fContact" placeholder="Имя"></div>'+
-     '<div class="field"><label class="lbl">Телефон <span class="req">*</span></label><input class="inp" id="fPhone" placeholder="+381 …" inputmode="tel"></div>'+
-     '<div class="field"><label class="lbl">Дата доставки</label><input class="inp" id="fDate" type="date"><div class="hint">Не ранее чем через 48 часов. По воскресеньям отгрузки нет.</div></div>'+
-     '<div class="chk" id="fPickup"><span class="box"></span><span>Самовывоз из пекарни (без доставки)</span></div>'+
-     '<div class="field" style="margin-top:13px;"><label class="lbl">Комментарий</label><textarea class="inp" id="fComment" placeholder="Пожелания к заказу"></textarea></div>'+
+  h+='<div class="sec-title">'+L('deliv')+'</div><div class="form-card">'+
+     '<div class="field"><label class="lbl">'+L('contact')+' <span class="req">*</span></label><input class="inp" id="fContact"></div>'+
+     '<div class="field"><label class="lbl">'+L('phone')+' <span class="req">*</span></label><input class="inp" id="fPhone" placeholder="+381 …" inputmode="tel"></div>'+
+     '<div class="field"><label class="lbl">'+L('ddate')+'</label><input class="inp" id="fDate" type="date"><div class="hint">'+L('delivHint')+'</div></div>'+
+     '<div class="chk" id="fPickup"><span class="box"></span><span>'+L('pickup')+'</span></div>'+
+     '<div class="field" style="margin-top:13px;"><label class="lbl">'+L('comment')+'</label><textarea class="inp" id="fComment"></textarea></div>'+
      '</div>';
   c.innerHTML=h;bindNav();bindRows();
   var d=new Date();d.setDate(d.getDate()+2);document.getElementById('fDate').min=d.toISOString().slice(0,10);
@@ -212,7 +242,8 @@ function renderTotals(){
     w.innerHTML=t+d;
   }else w.innerHTML='';
   document.getElementById('barSum').textContent=fmt(c.grand)+' дин.';
-  document.getElementById('barSub').textContent=c.count>0?(c.count+' поз. · '+(c.mode==='pickup'||c.mode==='need'?'самовывоз':'доставка')):'выберите позиции';
+  document.getElementById('barSub').textContent=c.count>0?(c.count+' '+L('pos')):L('pick');
+  var _sb=document.getElementById('sendBtn');if(_sb&&!_sb.disabled&&_sb.textContent.indexOf('…')<0)_sb.textContent=L('submit');
   document.getElementById('sendBtn').disabled=c.count<1;
   document.getElementById('bar').style.display=(VIEW==='new')?'block':'none';
 }
@@ -222,47 +253,76 @@ function renderOrders(){
   document.getElementById('hTitle').textContent='Мои заказы';
   document.getElementById('bar').style.display='none';
   var c=document.getElementById('content');var h=navHtml('orders');
-  if(!ORDERS.length){h+='<div class="empty">У вас пока нет заказов.<br>Перейдите в «Новый заказ», чтобы создать первый.</div>';c.innerHTML=h;bindNav();return;}
+  if(!ORDERS.length){h+='<div class="empty">'+L('noOrders')+'</div>';c.innerHTML=h;bindNav();return;}
   ORDERS.forEach(function(o){
     var st=o.status||'submitted';
     var items=(o.items||[]).map(function(it){return '• '+it.name+(it.weight?' ('+it.weight+')':'')+' — '+it.qty+' '+(it.uom||'шт');}).join('\n');
     var dt='';try{dt=new Date(o.created).toLocaleDateString('ru-RU');}catch(e){}
     var open=openOrder===o.order_id;
     h+='<div class="ocard"><div class="top"><span class="onum">'+esc(o.order_id||'')+'</span>'+
-       '<span class="st st-'+st+'">'+esc(ST[st]||st)+'</span><span class="odate" style="margin-left:auto;">'+esc(dt)+'</span></div>'+
-       (o.date?'<div class="odate" style="margin-top:6px;">Доставка: '+esc(o.date)+'</div>':'')+
+       '<span class="st st-'+st+'">'+esc(stName(st))+'</span><span class="odate" style="margin-left:auto;">'+esc(dt)+'</span></div>'+
+       (o.date?'<div class="odate" style="margin-top:6px;">'+L('ddate')+': '+esc(o.date)+'</div>':'')+
        '<div class="oitems">'+esc(items)+'</div>';
     if(open){
       h+='<div style="border-top:1px solid var(--line);margin-top:11px;padding-top:11px;">';
-      h+='<div class="lbl">История статуса</div>';
+      h+='<div class="lbl">'+L('statusHist')+'</div>';
       (o.events||[]).forEach(function(ev){var et='';try{et=new Date(ev.ts).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){}
-        h+='<div style="font-size:13px;color:#55544c;padding:2px 0;">'+esc(ST[ev.status]||ev.status)+' <span class="hint">· '+esc(et)+'</span></div>';});
+        h+='<div style="font-size:13px;color:#55544c;padding:2px 0;">'+esc(stName(ev.status))+' <span class="hint">· '+esc(et)+'</span></div>';});
       var ext=(o.comments||[]).filter(function(x){return !x.internal;});
-      if(ext.length){h+='<div class="lbl" style="margin-top:10px;">Комментарии пекарни</div>';
+      if(ext.length){h+='<div class="lbl" style="margin-top:10px;">'+L('bakeryComments')+'</div>';
         ext.forEach(function(cm){h+='<div style="font-size:13px;color:#55544c;padding:3px 0;">💬 '+esc(cm.text)+'</div>';});}
       h+='</div>';
     }
     h+='<div class="obottom"><span class="ototal">'+(o.total!==''&&o.total!=null?fmt(o.total)+' дин.':'')+'</span>'+
-       '<button class="btn btn-line det" data-id="'+esc(o.order_id)+'" style="padding:9px 14px;font-size:13px;">'+(open?'Свернуть':'Подробнее')+'</button>'+
-       '<button class="btn btn-line repeat" data-id="'+esc(o.order_id)+'" style="padding:9px 16px;font-size:13.5px;">Повторить</button></div>'+
-       (o.comment?'<div class="hint" style="margin-top:8px;">Ваш комментарий: '+esc(o.comment)+'</div>':'')+'</div>';
+       '<button class="btn btn-line det" data-id="'+esc(o.order_id)+'" style="padding:9px 14px;font-size:13px;">'+(open?L('collapse'):L('details'))+'</button>'+
+       '<button class="btn btn-line repeat" data-id="'+esc(o.order_id)+'" style="padding:9px 16px;font-size:13.5px;">'+L('repeat')+'</button></div>'+
+       (o.comment?'<div class="hint" style="margin-top:8px;">'+L('yourComment')+': '+esc(o.comment)+'</div>':'')+'</div>';
   });
   c.innerHTML=h;bindNav();
   c.querySelectorAll('.repeat').forEach(function(b){b.addEventListener('click',function(){repeatOrder(this.dataset.id);});});
   c.querySelectorAll('.det').forEach(function(b){b.addEventListener('click',function(){openOrder=(openOrder===this.dataset.id?'':this.dataset.id);renderOrders();});});
 }
+function renderTerms(){
+  document.getElementById('hTitle').textContent=L('info');
+  document.getElementById('bar').style.display='none';
+  var c=document.getElementById('content');var h=navHtml('info');
+  // условия сотрудничества
+  h+='<div class="sec-title">'+L('terms')+'</div>';
+  if(TERMS.length){
+    h+='<div class="form-card">';
+    TERMS.forEach(function(t,i){
+      var title=LANG==='sr'?(t.titleSr||t.titleRu||''):(t.titleRu||'');
+      var body=LANG==='sr'?(t.bodySr||t.bodyRu||''):(t.bodyRu||'');
+      h+='<div style="'+(i?'border-top:1px solid var(--line);margin-top:14px;padding-top:14px;':'')+'">'+
+         '<div style="font-weight:700;color:var(--blue-d);font-size:14px;margin-bottom:6px;">'+esc(title)+'</div>'+
+         '<div style="font-size:13.5px;color:#55544c;white-space:pre-line;">'+esc(body)+'</div></div>';
+    });
+    h+='</div>';
+  }else h+='<div class="empty">—</div>';
+  // контакты
+  h+='<div class="sec-title">'+L('contacts')+'</div><div class="form-card">';
+  var note=LANG==='sr'?(FOOT.noteSr||FOOT.noteRu||''):(FOOT.noteRu||'');
+  var owner=LANG==='sr'?(FOOT.ownerSr||FOOT.ownerRu||''):(FOOT.ownerRu||'');
+  if(note)h+='<div style="font-size:13.5px;color:#55544c;margin-bottom:10px;">'+esc(note)+'</div>';
+  h+='<div style="font-size:14px;line-height:1.9;">'+
+     '<b>'+esc(FOOT.brand||'BreadVenture')+'</b><br>'+
+     (FOOT.email?'✉ <a href="mailto:'+esc(FOOT.email)+'" style="color:var(--blue-d);">'+esc(FOOT.email)+'</a><br>':'')+
+     (FOOT.phone?'☎ <a href="tel:'+esc(FOOT.phone.replace(/\s/g,''))+'" style="color:var(--blue-d);">'+esc(FOOT.phone)+'</a><br>':'')+
+     (owner?'<span class="hint">'+esc(owner)+'</span>':'')+'</div></div>';
+  c.innerHTML=h;bindNav();
+}
 function renderDocs(){
-  document.getElementById('hTitle').textContent='Документы';
+  document.getElementById('hTitle').textContent=L('docs');
   document.getElementById('bar').style.display='none';
   var c=document.getElementById('content');var h=navHtml('docs');
-  if(!DOCS.length){h+='<div class="empty">Документы появятся здесь после загрузки пекарней.</div>';c.innerHTML=h;bindNav();return;}
+  if(!DOCS.length){h+='<div class="empty">'+L('noDocs')+'</div>';c.innerHTML=h;bindNav();return;}
   var groups={};DOCS.forEach(function(d){var t=d.type||'other';(groups[t]=groups[t]||[]).push(d);});
   Object.keys(groups).forEach(function(t){
-    h+='<div class="cat">'+esc(DOC_T[t]||t)+'</div>';
+    h+='<div class="cat">'+esc(docType(t))+'</div>';
     groups[t].forEach(function(d){var dt='';try{dt=new Date(d.created).toLocaleDateString('ru-RU');}catch(e){}
-      h+='<div class="ocard" style="margin-bottom:9px;"><div class="top"><span style="font-weight:600;">'+esc(d.title||DOC_T[t]||'Документ')+'</span>'+
+      h+='<div class="ocard" style="margin-bottom:9px;"><div class="top"><span style="font-weight:600;">'+esc(d.title||docType(t))+'</span>'+
          (d.version?'<span class="hint">v'+esc(d.version)+'</span>':'')+'<span class="hint" style="margin-left:auto;">'+esc(dt)+'</span></div>'+
-         (d.url?'<div style="margin-top:10px;"><a class="btn" href="'+esc(d.url)+'" target="_blank" rel="noopener" style="display:inline-block;padding:9px 18px;font-size:13.5px;text-decoration:none;">Открыть / скачать</a></div>':'<div class="hint" style="margin-top:6px;">Ссылка не указана</div>')+'</div>';
+         (d.url?'<div style="margin-top:10px;"><a class="btn" href="'+esc(d.url)+'" target="_blank" rel="noopener" style="display:inline-block;padding:9px 18px;font-size:13.5px;text-decoration:none;">'+L('open')+'</a></div>':'<div class="hint" style="margin-top:6px;">Ссылка не указана</div>')+'</div>';
     });
   });
   c.innerHTML=h;bindNav();
@@ -288,11 +348,11 @@ function sendOrder(){
     items.push({name:it.name,weight:it.weight,qty:q,uom:itemUnit(it),sum:Math.round(unit*q*100)/100});});
   var order={contact:contact,phone:phone,date:date?new Date(date).toLocaleDateString('ru-RU'):'не указана',
     comment:comment,items:items,total:Math.round(c.grand*100)/100};
-  var btn=document.getElementById('sendBtn');btn.disabled=true;btn.textContent='Отправляем…';
+  var btn=document.getElementById('sendBtn');btn.disabled=true;btn.textContent=(LANG==='sr'?'Šaljemo…':'Отправляем…');
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({order:order,code:CODE})})
     .then(function(r){return r.json();})
     .then(function(j){if(j&&j.ok){qtyMap={};refreshOrders(function(){showOk(j.order_id);});}else throw 'err';})
-    .catch(function(){alert('Не удалось отправить заказ. Проверьте интернет и попробуйте ещё раз.');btn.disabled=false;btn.textContent='Отправить заказ';});
+    .catch(function(){alert(LANG==='sr'?'Nije moguće poslati porudžbinu. Pokušajte ponovo.':'Не удалось отправить заказ. Проверьте интернет и попробуйте ещё раз.');btn.disabled=false;btn.textContent=L('submit');});
 }
 function refreshOrders(cb){
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({myOrders:CODE})})
@@ -329,6 +389,7 @@ function applyAuth(j,code){
   try{localStorage.setItem('bv_partner_code',code);}catch(e){}
   var data=j.data||{};catalog=(data.catalog||[]).filter(function(it){return it&&it.name&&it.retail!=null;});
   ORDERS=j.orders||[];DOCS=j.documents||[];
+  TERMS=Array.isArray(data.terms)?data.terms:[];FOOT=data.foot||{};CATSR=data.catNamesSr||{};
   if(data.settings){var s=data.settings;if(s.free!=null)FREE_FROM=Number(s.free)||FREE_FROM;if(s.minDeliv!=null)MIN_DELIVERY=Number(s.minDeliv)||MIN_DELIVERY;if(s.deliv!=null)DELIVERY=Number(s.deliv)||DELIVERY;}
   setView('new');
 }
