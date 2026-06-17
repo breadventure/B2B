@@ -4002,6 +4002,14 @@
       <div id="visList" class="vis-list"></div>
     </div>
   </div>
+  <div id="pcfgModal" class="vis-overlay" style="display:none;">
+    <div class="vis-box">
+      <div class="vis-head"><b id="pcfgTitle">Кабинет партнёра</b><button id="pcfgClose" title="Закрыть">✕</button></div>
+      <div class="vis-hint2">Кнопками ↑↓ задайте порядок разделов и позиций именно для этого партнёра. Тумблер — показывать ли позицию лично ему. Настройки сохраняются на сервере.</div>
+      <div id="pcfgList" class="vis-list"></div>
+      <div style="padding:11px 20px;border-top:1px solid var(--line);"><button class="btn btn-line btn-sm" id="pcfgReset">Сбросить под этого партнёра</button></div>
+    </div>
+  </div>
 
   <!-- TERMS -->
   <section class="panel" id="panel-terms">
@@ -4216,7 +4224,7 @@ function DC(){return [
    desc:'Бриошь-булочка 130 г. Скидка на объёмы 35+ обсуждается индивидуально.', sostav:'', photo:'', tiers:[{min:1,disc:15},{min:16,disc:20}]}
 ];}
 
-var catalog=[], terms=[], offerLines=[], priceHistory=[], kpArchive=[], partners=[], catNamesSr={}, lastKP=null, selectedCats={};
+var catalog=[], terms=[], offerLines=[], priceHistory=[], kpArchive=[], partners=[], catNamesSr={}, partnerPrefs={}, lastKP=null, selectedCats={};
 
 /* ---- облако (Google Apps Script + Таблица) ---- */
 var K_GAS='bv_b2b_gas_url', K_MK='bv_b2b_master';
@@ -4246,7 +4254,7 @@ function cloudPut(key,value){
 }
 function cloudPutAll(){
   if(!GAS_URL)return Promise.reject('no-url');
-  var payload={catalog:stripPhotosArr(catalog),terms:terms,kpArchive:kpArchive,foot:footData,priceHistory:priceHistory,partners:partners,catNamesSr:catNamesSr};
+  var payload={catalog:stripPhotosArr(catalog),terms:terms,kpArchive:kpArchive,foot:footData,priceHistory:priceHistory,partners:partners,catNamesSr:catNamesSr,partnerPrefs:partnerPrefs};
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,all:payload})}).then(function(r){return r.json();})
     .then(function(j){if(j&&j.ok)return j;throw (j&&j.error)||'bad';});
@@ -4265,6 +4273,7 @@ function applyCloudData(data){
   if(Array.isArray(data.priceHistory))priceHistory=data.priceHistory;
   if(Array.isArray(data.partners))partners=data.partners;
   if(data.catNamesSr&&typeof data.catNamesSr==='object')catNamesSr=data.catNamesSr;
+  if(data.partnerPrefs&&typeof data.partnerPrefs==='object')partnerPrefs=data.partnerPrefs;
   if(data.foot){for(var fk in DEFAULT_FOOT)if(data.foot[fk]!=null)footData[fk]=data.foot[fk];}
 }
 function rerenderAll(){renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();refreshOfferRefs();}
@@ -4285,6 +4294,8 @@ function loadLocal(){
   if(!Array.isArray(partners))partners=[];
   try{var cs=localStorage.getItem('bv_b2b_catsr');if(cs)catNamesSr=JSON.parse(cs);}catch(e){}
   if(!catNamesSr||typeof catNamesSr!=='object')catNamesSr={};
+  try{var ppf=localStorage.getItem('bv_b2b_pprefs');if(ppf)partnerPrefs=JSON.parse(ppf);}catch(e){}
+  if(!partnerPrefs||typeof partnerPrefs!=='object')partnerPrefs={};
 }
 function loadAll(){
   loadLocal();
@@ -4301,6 +4312,7 @@ function saveKPArch(){try{localStorage.setItem(K_KPARCH,JSON.stringify(kpArchive
 function saveFoot(){try{localStorage.setItem(K_FOOT,JSON.stringify(footData));flash('termsStatus');}catch(e){}cloudPut('foot',footData);}
 function savePartners(){try{localStorage.setItem('bv_b2b_partners',JSON.stringify(partners));}catch(e){}cloudPut('partners',partners);}
 function saveCatSr(){try{localStorage.setItem('bv_b2b_catsr',JSON.stringify(catNamesSr));}catch(e){}cloudPut('catNamesSr',catNamesSr);}
+function savePartnerPrefs(){try{localStorage.setItem('bv_b2b_pprefs',JSON.stringify(partnerPrefs));}catch(e){}cloudPut('partnerPrefs',partnerPrefs);}
 function flash(id){var el=document.getElementById(id);if(!el)return;el.innerHTML='<b>Сохранено ✓</b> '+nowStr();
   clearTimeout(el._t);el._t=setTimeout(function(){el.textContent='Правки сохраняются автоматически';},2500);}
 
@@ -4945,6 +4957,65 @@ function renderVisModal(){
   });});
 }
 function openVisModal(){renderVisModal();document.getElementById('visModal').style.display='flex';}
+/* ---- персональная настройка кабинета партнёра ---- */
+var pcfgPid='', pcfgCatSeq=[], pcfgGroups={}, pcfgHidden=[];
+function partnerVisibleItems(pid){return catalog.filter(function(it){
+  if(it.b2bHide)return false;
+  if(Array.isArray(it.b2bOnly)&&it.b2bOnly.length)return it.b2bOnly.indexOf(pid)>=0;
+  return true;});}
+function openPcfg(pid,name){
+  pcfgPid=pid;
+  document.getElementById('pcfgTitle').textContent='Кабинет: '+name;
+  var base=partnerVisibleItems(pid);
+  var prefs=partnerPrefs[pid]||{};
+  var ord=Array.isArray(prefs.order)?prefs.order:[];
+  var idx={};ord.forEach(function(id,i){idx[id]=i;});
+  base.sort(function(a,b){var ia=(idx[a.id]!=null?idx[a.id]:9999),ib=(idx[b.id]!=null?idx[b.id]:9999);return ia-ib;});
+  pcfgCatSeq=[];pcfgGroups={};
+  base.forEach(function(it){var c=it.cat||'Без категории';if(!pcfgGroups[c]){pcfgGroups[c]=[];pcfgCatSeq.push(c);}pcfgGroups[c].push(it.id);});
+  var hid=Array.isArray(prefs.hidden)?prefs.hidden:[];
+  pcfgHidden=hid.filter(function(id){return base.some(function(it){return it.id===id;});});
+  renderPcfg();document.getElementById('pcfgModal').style.display='flex';
+}
+function savePcfg(){
+  var order=[];pcfgCatSeq.forEach(function(c){(pcfgGroups[c]||[]).forEach(function(id){order.push(id);});});
+  partnerPrefs[pcfgPid]={order:order,hidden:pcfgHidden.slice()};savePartnerPrefs();
+}
+function renderPcfg(){
+  var w=document.getElementById('pcfgList');if(!w)return;
+  if(!pcfgCatSeq.length){w.innerHTML='<div class="empty">Этому партнёру пока нечего показывать (все позиции скрыты глобально).</div>';return;}
+  var h='';
+  pcfgCatSeq.forEach(function(c,ci){
+    h+='<div class="vis-cat" style="display:flex;align-items:center;gap:8px;">'+
+       '<span style="flex:1;">'+esc(c)+'</span>'+
+       '<button class="btn btn-line btn-sm pc-cup" data-c="'+esc(c)+'" '+(ci===0?'disabled':'')+' style="padding:2px 8px;">↑</button>'+
+       '<button class="btn btn-line btn-sm pc-cdn" data-c="'+esc(c)+'" '+(ci===pcfgCatSeq.length-1?'disabled':'')+' style="padding:2px 8px;">↓</button></div>';
+    (pcfgGroups[c]||[]).forEach(function(id,ii){
+      var it=itemById(id);if(!it)return;
+      var vis=pcfgHidden.indexOf(id)<0;
+      h+='<div class="vis-row">'+
+         '<button class="btn btn-line btn-sm pc-iup" data-c="'+esc(c)+'" data-i="'+ii+'" '+(ii===0?'disabled':'')+' style="padding:2px 7px;">↑</button>'+
+         '<button class="btn btn-line btn-sm pc-idn" data-c="'+esc(c)+'" data-i="'+ii+'" '+(ii===pcfgGroups[c].length-1?'disabled':'')+' style="padding:2px 7px;">↓</button>'+
+         '<div class="vn" style="flex:1;">'+esc(it.name)+(it.weight?'<span class="vtag">'+esc(it.weight)+'</span>':'')+
+         '<div class="vsub">'+(vis?'видна':'скрыта для этого партнёра')+'</div></div>'+
+         '<div class="tgl'+(vis?' on':'')+'" data-id="'+esc(id)+'"></div></div>';
+    });
+  });
+  w.innerHTML=h;
+  w.querySelectorAll('.pc-cup').forEach(function(b){b.addEventListener('click',function(){var c=this.dataset.c,i=pcfgCatSeq.indexOf(c);if(i>0){pcfgCatSeq.splice(i,1);pcfgCatSeq.splice(i-1,0,c);savePcfg();renderPcfg();}});});
+  w.querySelectorAll('.pc-cdn').forEach(function(b){b.addEventListener('click',function(){var c=this.dataset.c,i=pcfgCatSeq.indexOf(c);if(i<pcfgCatSeq.length-1){pcfgCatSeq.splice(i,1);pcfgCatSeq.splice(i+1,0,c);savePcfg();renderPcfg();}});});
+  w.querySelectorAll('.pc-iup').forEach(function(b){b.addEventListener('click',function(){var c=this.dataset.c,i=+this.dataset.i,g=pcfgGroups[c];if(i>0){var t=g[i];g[i]=g[i-1];g[i-1]=t;savePcfg();renderPcfg();}});});
+  w.querySelectorAll('.pc-idn').forEach(function(b){b.addEventListener('click',function(){var c=this.dataset.c,i=+this.dataset.i,g=pcfgGroups[c];if(i<g.length-1){var t=g[i];g[i]=g[i+1];g[i+1]=t;savePcfg();renderPcfg();}});});
+  w.querySelectorAll('.tgl').forEach(function(t){t.addEventListener('click',function(){var id=this.dataset.id,k=pcfgHidden.indexOf(id);if(k<0)pcfgHidden.push(id);else pcfgHidden.splice(k,1);savePcfg();renderPcfg();});});
+}
+function closePcfg(){document.getElementById('pcfgModal').style.display='none';}
+document.getElementById('pcfgClose').addEventListener('click',closePcfg);
+document.getElementById('pcfgModal').addEventListener('click',function(e){if(e.target===this)closePcfg();});
+document.getElementById('pcfgReset').addEventListener('click',function(){
+  if(!confirm('Сбросить персональные настройки кабинета для этого партнёра? Он снова увидит позиции в общем порядке.'))return;
+  delete partnerPrefs[pcfgPid];savePartnerPrefs();
+  var nm=document.getElementById('pcfgTitle').textContent.replace('Кабинет: ','');openPcfg(pcfgPid,nm);
+});
 function closeVisModal(){document.getElementById('visModal').style.display='none';}
 document.getElementById('visBulk').addEventListener('click',openVisModal);
 document.getElementById('visClose').addEventListener('click',closeVisModal);
@@ -5314,6 +5385,7 @@ function renderPartners(){
        (p.phone?'<div class="hint" style="margin-top:2px;">'+esc(p.phone)+'</div>':'')+'</div>'+
        '<div style="font-family:monospace;font-size:16px;font-weight:700;letter-spacing:.05em;background:var(--cream);border:1px solid var(--line);border-radius:9px;padding:7px 12px;">'+esc(p.code)+'</div>'+
        '<button class="btn btn-line btn-sm p-copy">Копировать код</button>'+
+       '<button class="btn btn-line btn-sm p-cfg">⚙ Кабинет</button>'+
        '<button class="btn btn-line btn-sm p-toggle">'+(on?'Выключить':'Включить')+'</button>'+
        '<button class="btn btn-line btn-sm danger p-del">Удалить</button></div>';
   });
@@ -5323,6 +5395,7 @@ function renderPartners(){
     row.querySelector('.p-copy').addEventListener('click',function(){
       var t=p.code;if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast('Код скопирован: '+t);},function(){prompt('Код:',t);});}else prompt('Код:',t);});
     row.querySelector('.p-toggle').addEventListener('click',function(){p.active=(p.active===false);savePartners();renderPartners();toast(p.active!==false?'Доступ включён':'Доступ выключен');});
+    row.querySelector('.p-cfg').addEventListener('click',function(){openPcfg(p.id,p.name);});
     row.querySelector('.p-del').addEventListener('click',function(){if(confirm('Удалить партнёра «'+p.name+'»? Код перестанет работать.')){partners=partners.filter(function(x){return x.id!==p.id;});savePartners();renderPartners();}});
   });
 }
