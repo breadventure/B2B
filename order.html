@@ -126,6 +126,7 @@ var GAS_URL='https://script.google.com/macros/s/AKfycbxec2oCFdaE1hEwCo_GGIyThwih
 var PDV_DEFAULT=10, FREE_FROM=7000, MIN_DELIVERY=2500, DELIVERY=350;
 var catalog=[], qtyMap={}, pickup=false, CODE='', PARTNER='', ORDERS=[], DOCS=[], TERMS=[], FOOT={}, CATSR={}, VIEW='new', openOrder='';
 var SUBS=[], subQty={}, subEditId='', subDays=[];
+var POINTS=[], selPoint='';
 var LANG='ru';try{LANG=localStorage.getItem('bv_partner_lang')||'ru';}catch(e){}
 var HOLIDAYS=[];var HOLIDAY_RAW=[];var LEAD_DAYS=2;
 try{CODE=localStorage.getItem('bv_partner_code')||'';}catch(e){}
@@ -174,6 +175,7 @@ function isBlockedDate(d){if(d<earliestDate())return true;if(isSunday(d))return 
 function nextAvailable(){var d=earliestDate(),g=0;while(isBlockedDate(d)&&g<120){d.setDate(d.getDate()+1);g++;}return d;}
 var HOL_LBL={weekend:{ru:'выходные',sr:'neradni dani'},holiday:{ru:'праздничные выходные',sr:'praznični dani'},maintenance:{ru:'технические работы',sr:'tehnički radovi'}};
 function holRawType(y){for(var i=0;i<HOLIDAY_RAW.length;i++){var h=HOLIDAY_RAW[i];var d=(typeof h==='string')?h:(h&&h.date);if(d===y)return (typeof h==='string')?'holiday':((h&&h.type)||'holiday');}return 'holiday';}
+function timeSlotOptions(sel){var o='<option value="">'+(LANG==='sr'?'— vreme —':'— время —')+'</option>';for(var hh=8;hh<=16;hh++){var t=(hh<10?'0':'')+hh+':00';o+='<option value="'+t+'"'+(sel===t?' selected':'')+'>'+t+'</option>';}return o;}
 function holidayBannerHtml(){
   if(!HOLIDAYS.length)return '';
   var today=new Date();today.setHours(0,0,0,0);
@@ -181,16 +183,19 @@ function holidayBannerHtml(){
   if(!fut.length)return '';
   var ranges=[],cur=[fut[0]];
   for(var i=1;i<fut.length;i++){var p=new Date(fut[i-1]+'T00:00:00'),n=new Date(fut[i]+'T00:00:00');if((n-p)===86400000)cur.push(fut[i]);else{ranges.push(cur);cur=[fut[i]];}}
-  ranges.push(cur);var r=ranges[0];
-  var startD=new Date(r[0]+'T00:00:00');
-  var daysLeft=Math.round((startD-today)/86400000);
-  if(daysLeft>14)return '';
+  ranges.push(cur);
   function f(y){var d=new Date(y+'T00:00:00');return (''+d.getDate()).padStart(2,'0')+'.'+(''+(d.getMonth()+1)).padStart(2,'0')+'.'+d.getFullYear();}
-  var sr=(LANG==='sr'),tp=holRawType(r[0]),tn=(HOL_LBL[tp]?HOL_LBL[tp][sr?'sr':'ru']:(sr?'neradni dani':'нерабочие дни'));
-  var txt;
-  if(r.length===1)txt=sr?('Obratite pažnju: '+f(r[0])+' — '+tn+'. Uzmite u obzir pri planiranju porudžbina.'):('Обратите внимание: '+f(r[0])+' — '+tn+'. Учитывайте это при планировании заказов.');
-  else txt=sr?('Obratite pažnju: od '+f(r[0])+' do '+f(r[r.length-1])+' — '+tn+'. Uzmite u obzir pri planiranju porudžbina.'):('Обратите внимание: с '+f(r[0])+' по '+f(r[r.length-1])+' — '+tn+'. Учитывайте это при планировании заказов.');
-  return '<div class="holiday-banner">📅 '+txt+'</div>';
+  var sr=(LANG==='sr'),lines=[];
+  ranges.forEach(function(r){
+    var startD=new Date(r[0]+'T00:00:00'),daysLeft=Math.round((startD-today)/86400000);
+    if(daysLeft>14)return;
+    var tp=holRawType(r[0]),tn=(HOL_LBL[tp]?HOL_LBL[tp][sr?'sr':'ru']:(sr?'neradni dani':'нерабочие дни'));
+    if(r.length===1)lines.push(f(r[0])+' — '+tn);
+    else lines.push((sr?'od ':'с ')+f(r[0])+(sr?' do ':' по ')+f(r[r.length-1])+' — '+tn);
+  });
+  if(!lines.length)return '';
+  var head=sr?'Obratite pažnju na neradne dane (uzmite u obzir pri planiranju):':'Обратите внимание на нерабочие дни (учитывайте при планировании):';
+  return '<div class="holiday-banner">📅 '+head+'<br>'+lines.join('<br>')+'</div>';
 }
 function pdvName(){return 'PDV';}
 function nextTierHint(it,q){
@@ -230,12 +235,13 @@ function setView(v){VIEW=v;
   document.getElementById('logout').addEventListener('click',logout);
   var _tag=document.querySelector('.tag');if(_tag)_tag.textContent=(LANG==='sr'?'BreadVenture · zanatska pekara · Beograd':'BreadVenture · ремесленная пекарня · Белград');
   document.querySelectorAll('.lng').forEach(function(a){a.addEventListener('click',function(){LANG=this.dataset.l;try{localStorage.setItem('bv_partner_lang',LANG);}catch(e){}setView(VIEW);});});
-  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='subs')renderSubs();else if(v==='docs')renderDocs();else if(v==='price')renderPriceList();else renderTerms();
+  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='subs')renderSubs();else if(v==='points')renderPoints();else if(v==='docs')renderDocs();else if(v==='price')renderPriceList();else renderTerms();
 }
 function navHtml(active){
   return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">'+L('neworder')+'</button>'+
          '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">'+L('myorders')+(ORDERS.length?' ('+ORDERS.length+')':'')+'</button>'+
          '<button data-v="subs" class="'+(active==='subs'?'on':'')+'">'+(LANG==='sr'?'Redovno':'Регулярно')+(pendingCount()?' •'+pendingCount():'')+'</button>'+
+         '<button data-v="points" class="'+(active==='points'?'on':'')+'">'+(LANG==='sr'?'Adrese':'Адреса')+(POINTS.length?' ('+POINTS.length+')':'')+'</button>'+
          '<button data-v="docs" class="'+(active==='docs'?'on':'')+'">'+L('docs')+(DOCS.length?' ('+DOCS.length+')':'')+'</button>'+
          '<button data-v="price" class="'+(active==='price'?'on':'')+'">'+L('pricetab')+'</button>'+
          '<button data-v="info" class="'+(active==='info'?'on':'')+'">'+L('info')+'</button></nav>';
@@ -269,10 +275,20 @@ function renderNew(){
   h+='<div class="sec-title">'+L('deliv')+'</div><div class="form-card">'+
      '<div class="field"><label class="lbl">'+L('contact')+' <span class="req">*</span></label><input class="inp" id="fContact"></div>'+
      '<div class="field"><label class="lbl">'+L('phone')+' <span class="req">*</span></label><input class="inp" id="fPhone" placeholder="+381 …" inputmode="tel"></div>'+
-     '<div class="field"><label class="lbl">'+L('address')+' <span class="req">*</span></label><input class="inp" id="fAddr" placeholder="'+(LANG==='sr'?'Ulica, broj, grad':'Улица, дом, город')+'"></div>'+
+     '<div class="field"><label class="lbl">'+(LANG==='sr'?'Kuda dostaviti':'Куда везти')+' <span class="req">*</span></label>'+
+       (POINTS.length?
+         '<select class="inp" id="fPoint"><option value="">'+(LANG==='sr'?'— izaberite tačku —':'— выберите точку —')+'</option>'+
+           POINTS.map(function(pt){return '<option value="'+esc(pt.id)+'"'+(selPoint===pt.id?' selected':'')+'>'+esc(pt.name?pt.name+' — ':'')+esc(pt.address)+'</option>';}).join('')+
+           '<option value="__new"'+(selPoint==='__new'?' selected':'')+'>'+(LANG==='sr'?'+ Druga adresa':'+ Другой адрес')+'</option></select>'+
+           '<div id="fAddrWrap" style="display:none;margin-top:8px;"><input class="inp" id="fAddr" placeholder="'+(LANG==='sr'?'Ulica, broj, grad':'Улица, дом, город')+'"></div>'+
+           '<div class="hint" style="margin-top:4px;">'+(LANG==='sr'?'Adrese se uređuju u kartici „Adrese".':'Адреса редактируются во вкладке «Адреса».')+'</div>'
+       :
+         '<input class="inp" id="fAddr" placeholder="'+(LANG==='sr'?'Ulica, broj, grad':'Улица, дом, город')+'">'+
+           '<div class="hint" style="margin-top:4px;">'+(LANG==='sr'?'Možete sačuvati adrese tačaka u kartici „Adrese" i birati ih ovde.':'Можно сохранить адреса точек во вкладке «Адреса» и выбирать их здесь.')+'</div>'
+       )+'</div>'+
      '<div style="display:flex;gap:12px;flex-wrap:wrap;">'+
        '<div class="field" style="flex:1;min-width:150px;"><label class="lbl">'+L('ddate')+' <span class="req">*</span></label><input class="inp" id="fDate" type="date"><div class="hint" id="dateHint"></div></div>'+
-       '<div class="field" style="flex:1;min-width:120px;"><label class="lbl">'+L('dtime')+'</label><input class="inp" id="fTime" type="time"></div>'+
+       '<div class="field" style="flex:1;min-width:120px;"><label class="lbl">'+L('dtime')+'</label><select class="inp" id="fTime">'+timeSlotOptions('')+'</select><div class="hint" style="margin-top:4px;">'+(LANG==='sr'?'8:00–16:00. Drugo vreme — upišite u komentar, potvrdićemo.':'8:00–16:00. Другое время — впишите в комментарий, мы согласуем.')+'</div></div>'+
      '</div>'+
      '<div class="chk" id="fPickup"><span class="box"></span><span>'+L('pickup')+'</span></div>'+
      '<div class="field" style="margin-top:13px;"><label class="lbl">'+L('comment')+'</label><textarea class="inp" id="fComment"></textarea></div>'+
@@ -284,10 +300,16 @@ function renderNew(){
   document.getElementById('dateHint').textContent=L('earliest')+': '+fmtDate(na)+'. '+L('cutoff')+' '+L('sundayoff');
   document.getElementById('fPickup').classList.toggle('on',pickup);
   document.getElementById('fPickup').addEventListener('click',function(){pickup=!pickup;this.classList.toggle('on',pickup);renderTotals();});
+  var fp=document.getElementById('fPoint');
+  if(fp){fp.addEventListener('change',function(){selPoint=this.value;
+    var w=document.getElementById('fAddrWrap');if(w)w.style.display=(this.value==='__new')?'block':'none';
+    if(this.value==='__new'){var fa=document.getElementById('fAddr');if(fa)fa.focus();}});
+    if(selPoint){var w0=document.getElementById('fAddrWrap');if(w0)w0.style.display=(selPoint==='__new')?'block':'none';}
+  }
   var sc='',sp='',sa='';try{sc=localStorage.getItem('bv_p_contact')||'';sp=localStorage.getItem('bv_p_phone')||'';sa=localStorage.getItem('bv_p_addr')||'';}catch(e){}
   if(sc)document.getElementById('fContact').value=sc;
   if(sp)document.getElementById('fPhone').value=sp;
-  if(sa)document.getElementById('fAddr').value=sa;
+  var faEl=document.getElementById('fAddr');if(faEl&&sa&&!POINTS.length)faEl.value=sa;
   renderTotals();
 }
 function bindRows(){
@@ -339,7 +361,7 @@ function renderTotals(){
     var sr=(LANG==='sr'),dm;
     if(c.mode==='pickup'||c.mode==='need')dm=(sr?'preuzimanje':'самовывоз');
     else if(c.mode==='free')dm=(sr?'besplatna dostava':'бесплатная доставка');
-    else dm=(sr?'dostava ':'доставка ')+fmt(c.delivery)+' '+cur();
+    else dm=(sr?'dostava ':'доставка ')+fmt(c.delivery)+' '+cur()+(c.net<FREE_FROM?(sr?' · do besplatne '+fmt(FREE_FROM-c.net)+' din.':' · до бесплатной '+fmt(FREE_FROM-c.net)+' дин.'):'');
     return c.count+' '+L('pos')+' · '+dm;
   })():L('pick');
   var _sb=document.getElementById('sendBtn');if(_sb&&!_sb.disabled&&_sb.textContent.indexOf('…')<0)_sb.textContent=L('submit');
@@ -476,11 +498,14 @@ function repeatOrder(orderId){
 }
 
 /* ---------- отправка заказа ---------- */
+function pointById(id){for(var i=0;i<POINTS.length;i++)if(POINTS[i].id===id)return POINTS[i];return null;}
 function sendOrder(){
   var c=compute();if(c.count<1)return;
   var contact=document.getElementById('fContact').value.trim();
   var phone=document.getElementById('fPhone').value.trim();
-  var addr=document.getElementById('fAddr').value.trim();
+  var pt=(selPoint&&selPoint!=='__new')?pointById(selPoint):null;
+  var faEl=document.getElementById('fAddr');
+  var addr=pt?((pt.name?pt.name+', ':'')+pt.address):(faEl?faEl.value.trim():'');
   if(!contact||!phone){alert(LANG==='sr'?'Popunite kontakt osobu i telefon.':'Заполните контактное лицо и телефон.');return;}
   try{localStorage.setItem('bv_p_contact',contact);localStorage.setItem('bv_p_phone',phone);localStorage.setItem('bv_p_addr',addr);}catch(e){}
   if(!pickup&&!addr){alert(L('needaddr'));return;}
@@ -629,8 +654,16 @@ function renderSubForm(sub){
   h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">';
   for(var d=1;d<=6;d++)h+='<label class="dchk'+(subDays.indexOf(d)>=0?' on':'')+'" data-d="'+d+'">'+dowName(d)+'</label>';
   h+='</div>';
-  h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Vreme isporuke':'Время доставки')+'</label><input class="inp" id="sbTime" type="time" value="'+esc((sub&&sub.time)||'08:00')+'"></div>';
-  h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Adresa':'Адрес')+'</label><input class="inp" id="sbAddr" value="'+esc((sub&&sub.address)||localStorage.getItem('bv_p_addr')||'')+'"></div>';
+  h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Vreme isporuke':'Время доставки')+'</label><select class="inp" id="sbTime">'+timeSlotOptions((sub&&sub.time)||'08:00')+'</select><div class="hint" style="margin-top:4px;">'+(LANG==='sr'?'8:00–16:00.':'8:00–16:00.')+'</div></div>';
+  if(POINTS.length){
+    var curAddr=(sub&&sub.address)||'';
+    h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Adresa (tačka)':'Адрес (точка)')+'</label><select class="inp" id="sbPoint"><option value="">'+(LANG==='sr'?'— izaberite —':'— выберите —')+'</option>'+
+       POINTS.map(function(pt){var full=(pt.name?pt.name+', ':'')+pt.address;return '<option value="'+esc(full)+'"'+(curAddr===full?' selected':'')+'>'+esc(pt.name?pt.name+' — ':'')+esc(pt.address)+'</option>';}).join('')+
+       '<option value="__new"'+((curAddr&&!POINTS.some(function(pt){return ((pt.name?pt.name+', ':'')+pt.address)===curAddr;}))?' selected':'')+'>'+(LANG==='sr'?'+ Druga adresa':'+ Другой адрес')+'</option></select>'+
+       '<div id="sbAddrWrap" style="display:none;margin-top:8px;"><input class="inp" id="sbAddr" value="'+esc(curAddr)+'"></div></div>';
+  }else{
+    h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Adresa':'Адрес')+'</label><input class="inp" id="sbAddr" value="'+esc((sub&&sub.address)||localStorage.getItem('bv_p_addr')||'')+'"></div>';
+  }
   h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Kontakt osoba':'Контактное лицо')+'</label><input class="inp" id="sbContact" value="'+esc((sub&&sub.contact)||localStorage.getItem('bv_p_contact')||'')+'"></div>';
   h+='<div class="field"><label class="flab">'+(LANG==='sr'?'Telefon':'Телефон')+'</label><input class="inp" id="sbPhone" value="'+esc((sub&&sub.phone)||localStorage.getItem('bv_p_phone')||'')+'"></div>';
   h+='</div>';
@@ -638,25 +671,111 @@ function renderSubForm(sub){
   catalog.forEach(function(it){var q=Math.max(0,Number(subQty[it.id])||0);
     h+='<div class="ocard" style="margin-bottom:8px;display:flex;align-items:center;gap:10px;"><span style="flex:1;font-size:14px;">'+esc(catName(it.name))+(it.weight?' <span class="hint">('+esc(it.weight)+')</span>':'')+'</span>'+
        '<div class="qty" data-id="'+esc(it.id)+'"><button data-act="m">−</button><span class="sqv">'+q+'</span><button data-act="p">+</button></div></div>';});
+  h+='<div id="subTotals" style="margin-top:14px;"></div>';
   h+='<button class="btn" id="sbSave" style="margin-top:12px;">'+(LANG==='sr'?'Sačuvaj':'Сохранить')+'</button>';
   c.innerHTML=h;
   document.getElementById('sbBack').addEventListener('click',function(){renderSubs();});
+  var sbp=document.getElementById('sbPoint');
+  if(sbp){sbp.addEventListener('change',function(){var w=document.getElementById('sbAddrWrap');if(w)w.style.display=(this.value==='__new')?'block':'none';});
+    if(sbp.value==='__new'){var w2=document.getElementById('sbAddrWrap');if(w2)w2.style.display='block';}
+  }
   c.querySelectorAll('.dchk').forEach(function(l){l.addEventListener('click',function(){var dd=Number(this.dataset.d),i=subDays.indexOf(dd);if(i>=0)subDays.splice(i,1);else subDays.push(dd);this.classList.toggle('on');});});
-  c.querySelectorAll('.qty').forEach(function(row){var id=row.dataset.id;row.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){var v=Math.max(0,Number(subQty[id])||0);v=this.dataset.act==='p'?v+1:Math.max(0,v-1);subQty[id]=v;row.querySelector('.sqv').textContent=v;});});});
+  c.querySelectorAll('.qty').forEach(function(row){var id=row.dataset.id;row.querySelectorAll('button').forEach(function(b){b.addEventListener('click',function(){var v=Math.max(0,Number(subQty[id])||0);v=this.dataset.act==='p'?v+1:Math.max(0,v-1);subQty[id]=v;row.querySelector('.sqv').textContent=v;renderSubTotals();});});});
   document.getElementById('sbSave').addEventListener('click',saveSub);
+  renderSubTotals();
+}
+function renderSubTotals(){
+  var w=document.getElementById('subTotals');if(!w)return;
+  var saved=qtyMap;qtyMap={};for(var k in subQty)qtyMap[k]=subQty[k];
+  var c=compute();qtyMap=saved;
+  if(c.count<1){w.innerHTML='';return;}
+  var sr=(LANG==='sr'),rates=Object.keys(c.pdvByRate).map(Number).sort(function(a,b){return a-b;});
+  var t='<div class="sec-title" style="margin-top:0;">'+(sr?'Procena porudžbine':'Расчёт поставки')+'</div><div class="totals">';
+  t+='<div class="trow"><span>'+(sr?'Osnovna (sa PDV)':'Базовая (с PDV)')+'</span><span>'+fmt(c.base)+' '+cur()+'</span></div>';
+  if(c.save>0)t+='<div class="trow"><span>'+(sr?'Popust po količini':'Скидка по объёму')+'</span><span>−'+fmt(c.save)+' '+cur()+'</span></div>';
+  t+='<div class="trow"><span>'+(sr?'Iznos (sa PDV)':'Стоимость (с PDV)')+'</span><span>'+fmt(c.gross)+' '+cur()+'</span></div>';
+  rates.forEach(function(rt){t+='<div class="trow"><span>'+(sr?'u tome PDV ':'в т.ч. PDV ')+rt+'%</span><span>'+fmt(c.pdvByRate[rt])+' '+cur()+'</span></div>';});
+  t+='<div class="trow"><span>'+(sr?'bez PDV':'Без PDV')+'</span><span>'+fmt(c.net)+' '+cur()+'</span></div>';
+  t+='<div class="trow"><span>'+(c.mode==='pickup'||c.mode==='need'?(sr?'Preuzimanje':'Самовывоз'):(sr?'Dostava':'Доставка'))+'</span><span>'+fmt(c.delivery)+' '+cur()+'</span></div>';
+  t+='<div class="trow g"><span>'+(sr?'Ukupno po isporuci':'Итого за поставку')+'</span><span>'+fmt(c.grand)+' '+cur()+'</span></div></div>';
+  var d='';
+  if(c.mode==='need')d='<div class="deliv warn" style="margin-top:10px;"><span>⚠</span><div>'+(sr?'Iznos bez PDV manji od 2500 din. — dostupno samo preuzimanje.':'Сумма без PDV меньше 2500 дин. — доступен только самовывоз.')+'</div></div>';
+  else if(c.mode==='free')d='<div class="deliv ok" style="margin-top:10px;"><span>✓</span><div>'+(sr?'Besplatna dostava.':'Бесплатная доставка.')+'</div></div>';
+  else if(c.mode==='pay')d='<div class="deliv pay" style="margin-top:10px;"><span>🚲</span><div>'+(sr?'Dostava '+fmt(c.delivery)+' din. Do besplatne '+fmt(FREE_FROM-c.net)+' din.':'Доставка '+fmt(c.delivery)+' дин. До бесплатной '+fmt(FREE_FROM-c.net)+' дин.')+'</div></div>';
+  w.innerHTML=t+d;
 }
 function saveSub(){
   if(!subDays.length){alert(LANG==='sr'?'Izaberite bar jedan dan.':'Выберите хотя бы один день недели.');return;}
   var items=[];catalog.forEach(function(it){var q=Math.max(0,Number(subQty[it.id])||0);if(q)items.push({id:it.id,name:it.name,weight:it.weight,uom:itemUnit(it),qty:q});});
   if(!items.length){alert(LANG==='sr'?'Dodajte bar jednu poziciju.':'Добавьте хотя бы одну позицию.');return;}
+  var sbpEl=document.getElementById('sbPoint'),sbAddrEl=document.getElementById('sbAddr');
+  var subAddr=(sbpEl&&sbpEl.value&&sbpEl.value!=='__new')?sbpEl.value:(sbAddrEl?sbAddrEl.value.trim():'');
   var payload={days:subDays.slice().sort(function(a,b){return a-b;}),time:document.getElementById('sbTime').value||'',
-    address:document.getElementById('sbAddr').value.trim(),contact:document.getElementById('sbContact').value.trim(),
+    address:subAddr,contact:document.getElementById('sbContact').value.trim(),
     phone:document.getElementById('sbPhone').value.trim(),items:items};
   var btn=document.getElementById('sbSave');btn.disabled=true;btn.textContent='…';
   var req=subEditId?{subUpdate:payload,subId:subEditId,code:CODE}:{subCreate:payload,code:CODE};
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(req)})
     .then(function(r){return r.json();}).then(function(j){if(j&&j.ok){if(Array.isArray(j.subscriptions))SUBS=j.subscriptions;renderSubs();toast2(LANG==='sr'?'Sačuvano':'Сохранено');}else{alert(LANG==='sr'?'Nije uspelo':'Не удалось');btn.disabled=false;btn.textContent=(LANG==='sr'?'Sačuvaj':'Сохранить');}})
     .catch(function(){alert(LANG==='sr'?'Greška':'Ошибка');btn.disabled=false;btn.textContent=(LANG==='sr'?'Sačuvaj':'Сохранить');});
+}
+
+/* ---------- адреса (точки) партнёра ---------- */
+var ptEditId='';
+function cloudPointList(cb){
+  if(!CODE){if(cb)cb();return;}
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({pointList:CODE})})
+    .then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&Array.isArray(j.points))POINTS=j.points;if(cb)cb();else if(VIEW==='points')renderPoints();})
+    .catch(function(){if(cb)cb();});
+}
+function renderPoints(){
+  document.getElementById('hTitle').textContent=(LANG==='sr'?'Moje adrese':'Мои адреса');
+  document.getElementById('bar').style.display='none';
+  var c=document.getElementById('content');var h=navHtml('points');
+  h+='<div class="cat">'+(LANG==='sr'?'Adrese isporuke (tačke)':'Адреса доставки (точки)')+'</div>';
+  h+='<p class="hint" style="margin-bottom:12px;">'+(LANG==='sr'?'Sačuvajte adrese vaših objekata. Pri poručivanju biraćete tačku — dostava i prag se računaju po toj tački.':'Сохраните адреса ваших точек. При заказе вы выберете точку — доставка и порог считаются по этой точке.')+'</p>';
+  if(!POINTS.length)h+='<div class="empty" style="margin-bottom:14px;">'+(LANG==='sr'?'Još nema sačuvanih adresa.':'Сохранённых адресов пока нет.')+'</div>';
+  POINTS.forEach(function(pt){
+    h+='<div class="ocard" style="margin-bottom:9px;"><div class="top"><span style="font-weight:600;">📍 '+esc(pt.name||(LANG==='sr'?'Tačka':'Точка'))+'</span></div>'+
+       '<div style="font-size:13.5px;color:#55544c;margin-top:3px;">'+esc(pt.address||'')+'</div>'+
+       '<div style="display:flex;gap:7px;margin-top:10px;">'+
+       '<button class="btn btn-line pt-ed" data-id="'+esc(pt.id)+'" style="padding:8px 14px;font-size:13px;">'+(LANG==='sr'?'Izmeni':'Изменить')+'</button>'+
+       '<button class="btn btn-line pt-del" data-id="'+esc(pt.id)+'" style="padding:8px 14px;font-size:13px;color:#b3261e;">'+(LANG==='sr'?'Obriši':'Удалить')+'</button>'+
+       '</div></div>';
+  });
+  h+='<button class="btn" id="ptNew" style="margin-top:6px;">+ '+(LANG==='sr'?'Nova adresa':'Новый адрес')+'</button>';
+  c.innerHTML=h;bindNav();
+  c.querySelectorAll('.pt-ed').forEach(function(b){b.addEventListener('click',function(){openPointForm(this.dataset.id);});});
+  c.querySelectorAll('.pt-del').forEach(function(b){b.addEventListener('click',function(){var id=this.dataset.id;if(confirm(LANG==='sr'?'Obrisati ovu adresu?':'Удалить этот адрес?'))cloudPointDelete(id);});});
+  var nb=document.getElementById('ptNew');if(nb)nb.addEventListener('click',function(){openPointForm('');});
+}
+function openPointForm(editId){
+  ptEditId=editId||'';var pt=null;if(editId)POINTS.forEach(function(x){if(x.id===editId)pt=x;});
+  document.getElementById('hTitle').textContent=(LANG==='sr'?'Adresa':'Адрес');
+  var c=document.getElementById('content');var h='';
+  h+='<div style="margin:4px 0 12px;"><a id="ptBack" style="color:var(--blue-d);cursor:pointer;">‹ '+(LANG==='sr'?'Nazad':'Назад')+'</a></div>';
+  h+='<div class="form-card">'+
+     '<div class="field"><label class="flab">'+(LANG==='sr'?'Naziv tačke':'Название точки')+'</label><input class="inp" id="ptName" placeholder="'+(LANG==='sr'?'npr. Centar':'напр. Центр')+'" value="'+esc(pt&&pt.name||'')+'"></div>'+
+     '<div class="field"><label class="flab">'+(LANG==='sr'?'Adresa':'Адрес')+' <span class="req">*</span></label><input class="inp" id="ptAddr" placeholder="'+(LANG==='sr'?'Ulica, broj, grad':'Улица, дом, город')+'" value="'+esc(pt&&pt.address||'')+'"></div>'+
+     '<button class="btn" id="ptSave" style="margin-top:6px;">'+(LANG==='sr'?'Sačuvaj':'Сохранить')+'</button></div>';
+  c.innerHTML=h;
+  document.getElementById('ptBack').addEventListener('click',function(){renderPoints();});
+  document.getElementById('ptSave').addEventListener('click',savePoint);
+}
+function savePoint(){
+  var name=document.getElementById('ptName').value.trim(),addr=document.getElementById('ptAddr').value.trim();
+  if(!addr){alert(LANG==='sr'?'Unesite adresu.':'Укажите адрес.');return;}
+  var point={name:name,address:addr};if(ptEditId)point.id=ptEditId;
+  var btn=document.getElementById('ptSave');btn.disabled=true;btn.textContent='…';
+  cloudPointSave(point,function(ok){if(ok)renderPoints();else{alert(LANG==='sr'?'Nije uspelo':'Не удалось');btn.disabled=false;btn.textContent=(LANG==='sr'?'Sačuvaj':'Сохранить');}});
+}
+function cloudPointSave(point,cb){
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({pointSave:point,code:CODE})})
+    .then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&Array.isArray(j.points))POINTS=j.points;if(cb)cb(j&&j.ok);}).catch(function(){if(cb)cb(false);});
+}
+function cloudPointDelete(id){
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({pointDelete:true,pointId:id,code:CODE})})
+    .then(function(r){return r.json();}).then(function(j){if(j&&j.ok){if(Array.isArray(j.points))POINTS=j.points;renderPoints();}else alert(LANG==='sr'?'Nije uspelo':'Не удалось');}).catch(function(){alert(LANG==='sr'?'Greška':'Ошибка');});
 }
 
 /* ---------- вход по коду ---------- */
@@ -678,11 +797,12 @@ function applyAuth(j,code){
   CODE=code;PARTNER=(j.partner&&j.partner.name)||'';
   try{localStorage.setItem('bv_partner_code',code);}catch(e){}
   var data=j.data||{};catalog=(data.catalog||[]).filter(function(it){return it&&it.name&&it.retail!=null;});
-  ORDERS=j.orders||[];DOCS=j.documents||[];
+  ORDERS=j.orders||[];DOCS=j.documents||[];POINTS=j.points||[];
   TERMS=Array.isArray(data.terms)?data.terms:[];FOOT=data.foot||{};CATSR=data.catNamesSr||{};
   if(data.settings){var s=data.settings;if(s.free!=null)FREE_FROM=Number(s.free)||FREE_FROM;if(s.minDeliv!=null)MIN_DELIVERY=Number(s.minDeliv)||MIN_DELIVERY;if(s.deliv!=null)DELIVERY=Number(s.deliv)||DELIVERY;if(Array.isArray(s.holidays)){HOLIDAY_RAW=s.holidays;HOLIDAYS=s.holidays.map(function(h){return typeof h==='string'?h:(h&&h.date)||'';}).filter(Boolean);}if(s.leadDays!=null)LEAD_DAYS=Number(s.leadDays)||LEAD_DAYS;}
   setView('new');
   cloudSubList();
+  cloudPointList();
 }
 function doAuth(){
   var code=document.getElementById('codeInp').value.trim().toUpperCase();if(!code){showLogin('Введите код.');return;}
