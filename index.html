@@ -193,7 +193,7 @@
   .kp-date{font-size:12.5px;color:var(--muted);}
   .kp-note{font-size:12px;color:var(--muted);background:var(--cream);border-radius:9px;padding:10px 13px;margin-top:10px;line-height:1.5;}
   .kp-prod{display:flex;gap:16px;padding:16px 0;border-bottom:1px solid var(--line-soft);}
-  .kp-prod img{width:160px;height:160px;border-radius:13px;object-fit:cover;flex:none;border:1px solid var(--line-soft);}
+  .kp-prod img{width:230px;height:auto;border-radius:13px;flex:none;border:1px solid var(--line-soft);align-self:flex-start;}
   .kp-prod .info{flex:1;min-width:0;}
   .kp-prod h4{font-size:19px;font-weight:700;}
   .kp-prod .w{font-size:13px;color:var(--muted);margin-left:7px;font-weight:400;}
@@ -4225,7 +4225,7 @@
         <div><label class="lbl">Версия (необяз.)</label><input class="inp" id="docVer" placeholder="напр. 1"></div>
       </div>
       <div class="field" style="margin-top:0;"><label class="lbl">Название</label><input class="inp" id="docTitle" placeholder="Счёт №123 от …"></div>
-      <div class="field"><label class="lbl">Файл (PDF, DOC, JPG, до 10 МБ)</label><input type="file" class="inp" id="docFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,application/pdf,image/*" style="font-size:13px;"></div>
+      <div class="field"><label class="lbl">Файлы (PDF, DOC, JPG, до 30 МБ; можно несколько)</label><input type="file" class="inp" id="docFile" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,image/*" style="font-size:13px;"></div>
       <div class="actions" style="margin-top:8px;"><button class="btn btn-primary btn-sm" id="docAddBtn">Добавить документ</button>
         <button class="btn btn-line btn-sm" id="docRefresh">Обновить список</button></div>
       <div id="docsView" style="margin-top:16px;"><div class="empty">Нажмите «Обновить список».</div></div>
@@ -5578,9 +5578,9 @@ function renderAdminOrders(){
       h+='<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;align-items:center;">'+
          '<select class="inp od-type" style="width:auto;font-size:13px;padding:7px 10px;"><option value="predracun">Предсчёт (predračun)</option><option value="otpremnica">Отпремница</option><option value="invoice">Счёт</option><option value="other">Документ</option></select>'+
          '<input class="inp od-title" placeholder="Название (необяз.)" style="flex:1;min-width:120px;font-size:13px;">'+
-         '<input type="file" class="od-file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,application/pdf,image/*" style="flex:2;min-width:170px;font-size:12.5px;">'+
+         '<input type="file" class="od-file" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,image/*" style="flex:2;min-width:170px;font-size:12.5px;">'+
          '<button class="btn btn-primary btn-sm od-add">Прикрепить</button></div>'+
-         '<div class="hint" style="margin-top:5px;">Выберите файл (PDF, DOC, JPG, PNG, до 10 МБ) — партнёр скачает сам файл, не ссылку.</div></div>';
+         '<div class="hint" style="margin-top:5px;">Можно выбрать несколько файлов (PDF, DOC, JPG, PNG, до 30 МБ каждый) — партнёр скачает сами файлы, не ссылки.</div></div>';
       h+='</div>';
     }
     // строка статуса: смена по кнопке «Сохранить», а не сразу
@@ -5636,20 +5636,29 @@ function renderAdminOrders(){
     var odAdd=card.querySelector('.od-add');
     if(odAdd)odAdd.addEventListener('click',function(){
       var tp=card.querySelector('.od-type').value,ti=card.querySelector('.od-title').value.trim();
-      var fi=card.querySelector('.od-file'),file=fi&&fi.files&&fi.files[0];
-      if(!file){toast('Выберите файл (PDF, DOC, JPG)');return;}
-      if(file.size>10*1024*1024){toast('Файл больше 10 МБ — уменьшите');return;}
-      odAdd.disabled=true;odAdd.textContent='Загрузка…';
-      var rd=new FileReader();
-      rd.onload=function(){
-        var b64=String(rd.result||'');var ix=b64.indexOf('base64,');if(ix>=0)b64=b64.substring(ix+7);
-        cloudOrderDocUpload(id,tp,ti,file.name,file.type,b64).then(function(j){
-          if(j&&j.ok&&j.doc){o.docs=(o.docs||[]).concat([j.doc]);toast('Файл прикреплён');renderAdminOrders();}
-          else{toast(j&&j.error==='auth'?'Нет доступа к Drive — переразверните Code.gs':'Не удалось загрузить');odAdd.disabled=false;odAdd.textContent='Прикрепить';}
-        }).catch(function(){toast('Ошибка соединения');odAdd.disabled=false;odAdd.textContent='Прикрепить';});
-      };
-      rd.onerror=function(){toast('Не удалось прочитать файл');odAdd.disabled=false;odAdd.textContent='Прикрепить';};
-      rd.readAsDataURL(file);
+      var fi=card.querySelector('.od-file'),files=fi&&fi.files?Array.prototype.slice.call(fi.files):[];
+      if(!files.length){toast('Выберите файл(ы) — PDF, DOC, JPG');return;}
+      var MAX=30*1024*1024,big=files.filter(function(f){return f.size>MAX;});
+      if(big.length){toast('Файл больше 30 МБ: '+big[0].name);return;}
+      odAdd.disabled=true;
+      var done=0,fail=0,lastMsg='';
+      function finish(){odAdd.disabled=false;odAdd.textContent='Прикрепить';if(fi)fi.value='';renderAdminOrders();
+        toast(fail?(lastMsg||('Загружено '+done+', с ошибкой '+fail)):('Файлов прикреплено: '+done));}
+      function next(i){
+        if(i>=files.length){finish();return;}
+        var file=files[i];odAdd.textContent='Загрузка '+(i+1)+'/'+files.length+'…';
+        var rd=new FileReader();
+        rd.onload=function(){var b64=String(rd.result||'');var ix=b64.indexOf('base64,');if(ix>=0)b64=b64.substring(ix+7);
+          cloudOrderDocUpload(id,tp,ti,file.name,file.type,b64).then(function(j){
+            if(j&&j.ok&&j.doc){o.docs=(o.docs||[]).concat([j.doc]);done++;}
+            else{fail++;if(j&&j.error==='drive')lastMsg='Нет доступа к Drive: запустите authorizeDrive в Apps Script и переразверните';else if(j&&j.ok&&!j.doc)lastMsg='На сервере старая версия Code.gs — переразверните новую';}
+            next(i+1);
+          }).catch(function(){fail++;lastMsg='Ошибка соединения';next(i+1);});
+        };
+        rd.onerror=function(){fail++;next(i+1);};
+        rd.readAsDataURL(file);
+      }
+      next(0);
     });
     card.querySelectorAll('.od-del').forEach(function(b){b.addEventListener('click',function(){
       var ts=this.dataset.ts;cloudOrderDocDel(id,ts).then(function(j){if(j&&j.ok){o.docs=(o.docs||[]).filter(function(d){return d.ts!==ts;});renderAdminOrders();}else toast('Не удалось');}).catch(function(){toast('Ошибка');});});});
@@ -5855,24 +5864,32 @@ var _da=document.getElementById('docAddBtn');if(_da)_da.addEventListener('click'
   var type=document.getElementById('docType').value;
   var title=document.getElementById('docTitle').value.trim();
   var ver=document.getElementById('docVer').value.trim();
-  var fi=document.getElementById('docFile'),file=fi&&fi.files&&fi.files[0];
+  var fi=document.getElementById('docFile'),files=fi&&fi.files?Array.prototype.slice.call(fi.files):[];
   if(!pid){toast('Нет партнёров — сначала заведите партнёра');return;}
-  if(!file){toast('Выберите файл (PDF, DOC, JPG)');return;}
-  if(file.size>10*1024*1024){toast('Файл больше 10 МБ — уменьшите');return;}
-  if(!title)title=file.name;
-  _da.disabled=true;_da.textContent='Загрузка…';
-  var rd=new FileReader();
-  rd.onload=function(){
-    var b64=String(rd.result||'');var ix=b64.indexOf('base64,');if(ix>=0)b64=b64.substring(ix+7);
-    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({master:MASTER,docUpload:true,partner_id:pid,type:type,title:title,version:ver,fileName:file.name,mime:file.type,dataB64:b64})})
-      .then(function(r){return r.json();}).then(function(j){_da.disabled=false;_da.textContent='Добавить документ';
-        if(j&&j.ok){if(j.doc)documentsAdmin.push(j.doc);renderDocsAdmin();
-          document.getElementById('docTitle').value='';if(document.getElementById('docFile'))document.getElementById('docFile').value='';document.getElementById('docVer').value='';
-          toast('Документ добавлен');}else toast(j&&j.error==='auth'?'Нет доступа к Drive — переразверните Code.gs':'Не удалось добавить');
-      }).catch(function(){_da.disabled=false;_da.textContent='Добавить документ';toast('Ошибка соединения');});
-  };
-  rd.onerror=function(){_da.disabled=false;_da.textContent='Добавить документ';toast('Не удалось прочитать файл');};
-  rd.readAsDataURL(file);
+  if(!files.length){toast('Выберите файл(ы) — PDF, DOC, JPG');return;}
+  var MAX=30*1024*1024,big=files.filter(function(f){return f.size>MAX;});
+  if(big.length){toast('Файл больше 30 МБ: '+big[0].name);return;}
+  _da.disabled=true;var done=0,fail=0,lastMsg='';
+  function finish(){_da.disabled=false;_da.textContent='Добавить документ';renderDocsAdmin();
+    document.getElementById('docTitle').value='';if(document.getElementById('docFile'))document.getElementById('docFile').value='';document.getElementById('docVer').value='';
+    toast(fail?(lastMsg||('Добавлено '+done+', с ошибкой '+fail)):('Документов добавлено: '+done));}
+  function next(i){
+    if(i>=files.length){finish();return;}
+    var file=files[i];_da.textContent='Загрузка '+(i+1)+'/'+files.length+'…';
+    var ttl=(files.length>1?file.name:(title||file.name));
+    var rd=new FileReader();
+    rd.onload=function(){var b64=String(rd.result||'');var ix=b64.indexOf('base64,');if(ix>=0)b64=b64.substring(ix+7);
+      fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({master:MASTER,docUpload:true,partner_id:pid,type:type,title:ttl,version:ver,fileName:file.name,mime:file.type,dataB64:b64})})
+        .then(function(r){return r.json();}).then(function(j){
+          if(j&&j.ok&&j.doc){documentsAdmin.push(j.doc);done++;}
+          else{fail++;if(j&&j.error==='drive')lastMsg='Нет доступа к Drive: запустите authorizeDrive в Apps Script и переразверните';else if(j&&j.ok&&!j.doc)lastMsg='На сервере старая версия Code.gs — переразверните новую';}
+          next(i+1);
+        }).catch(function(){fail++;lastMsg='Ошибка соединения';next(i+1);});
+    };
+    rd.onerror=function(){fail++;next(i+1);};
+    rd.readAsDataURL(file);
+  }
+  next(0);
 });
 document.querySelector('.tab[data-tab="partners"]').addEventListener('click',function(){fillDocPartners();});
 
