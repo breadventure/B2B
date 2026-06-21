@@ -4083,6 +4083,14 @@
     </div>
   </div>
 
+  <div id="declOrderModal" class="vis-overlay" style="display:none;">
+    <div class="vis-box" style="max-width:720px;width:100%;max-height:92vh;display:flex;flex-direction:column;">
+      <div class="vis-head"><b id="declOrderTitle">Декларация</b><button id="declOrderClose" title="Закрыть">✕</button></div>
+      <div id="declOrderBody" style="padding:16px 20px;overflow:auto;"></div>
+      <div id="declOrderFoot" style="padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center;"></div>
+    </div>
+  </div>
+
   <!-- TERMS -->
   <section class="panel" id="panel-terms">
     <div class="card">
@@ -4310,6 +4318,37 @@
       <div class="actions" style="margin-top:14px;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-line btn-sm" id="declPrint">🖨 Печать</button>
         <button class="btn btn-primary btn-sm" id="declPdf">⬇ Скачать PDF</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cat-title" style="margin-top:0;">Этикетки для наклеек / Nalepnice</div>
+      <p class="hint" style="margin-bottom:12px;">Компактная декларация на 1 продукт под самоклеящиеся этикетки. Лист A4 заполняется копиями: A6 — 4 шт, A5 — 2 шт, A4 — 1 шт. Данные берутся из справочника выше.</p>
+      <div class="field" style="margin:0;">
+        <label class="lbl">Продукт</label>
+        <select class="inp" id="lblProduct" style="width:100%;"></select>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin-top:12px;">
+        <div class="field" style="margin:0;">
+          <label class="lbl">Размер этикетки</label>
+          <div class="seg" id="lblSizeSeg">
+            <button class="seg-b active" data-size="a6">A6 (105×148)</button>
+            <button class="seg-b" data-size="a5">A5 (210×148)</button>
+            <button class="seg-b" data-size="a4">A4</button>
+          </div>
+        </div>
+        <div class="field" style="margin:0;min-width:130px;">
+          <label class="lbl">Копий на листе</label>
+          <input class="inp" id="lblCopies" type="number" min="1" max="4" value="4" style="width:110px;">
+        </div>
+        <label class="chk" style="margin-bottom:1px;"><input type="checkbox" id="lblShowMeta"><span>Печатать дату и партию (LOT)</span></label>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;" id="lblMetaRow">
+        <div class="field" style="min-width:130px;margin:0;"><label class="lbl">Дата</label><input class="inp" id="lblDate" type="date"></div>
+        <div class="field" style="min-width:130px;margin:0;"><label class="lbl">Партия (LOT)</label><input class="inp" id="lblLot" placeholder="напр. 210626"></div>
+      </div>
+      <div class="actions" style="margin-top:14px;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" id="lblPrint">🖨 Печать этикеток</button>
       </div>
     </div>
   </section>
@@ -6770,8 +6809,13 @@ function ensureDeclRec(k){if(!declProducts[k])declProducts[k]={alg:[],nutr:{}};r
 function renderDeclPick(){
   var w=document.getElementById('declPick');if(!w)return;
   if(!catalog.length){w.innerHTML='<div class="hint">Нет товаров в прайс-листе.</div>';return;}
+  var today=new Date().toISOString().slice(0,10);
   w.innerHTML=catalog.map(function(it){var k=declKey(it.name,it.weight);
-    return '<label class="chk" style="justify-content:flex-start;"><input type="checkbox" class="decl-pick" data-name="'+esc(it.name)+'" data-weight="'+esc(it.weight||'')+'"><span>'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+'</span></label>';
+    return '<div class="declpick-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
+      '<label class="chk" style="flex:1;min-width:200px;justify-content:flex-start;"><input type="checkbox" class="decl-pick" data-name="'+esc(it.name)+'" data-weight="'+esc(it.weight||'')+'"><span>'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+'</span></label>'+
+      '<div style="display:flex;align-items:center;gap:6px;"><span class="hint" style="white-space:nowrap;">Дата произв.:</span>'+
+      '<input type="date" class="inp decl-pdate" value="'+today+'" style="width:auto;font-size:13px;padding:6px 9px;"></div>'+
+      '</div>';
   }).join('');
 }
 
@@ -6791,6 +6835,7 @@ function declProdBlock(p){
     row('Састав','Состав',sastav)+
     row('Алергени','Аллергены','<span class="alg"><b>'+declAlgNames(p.alg)+'</b></span>')+
     row('Нето количина','Нетто',esc(p.qty)||'—')+
+    (p.prodDate?row('Датум производње','Дата производства',esc(declDateFmt(p.prodDate))):'')+
     row('Рок трајања','Срок годности',declBi(p.shelfSr,p.shelfRu))+
     row('Услови чувања','Условия хранения',declBi(p.storeSr,p.storeRu))+
     nutrRows+'</div>';
@@ -6862,8 +6907,111 @@ function declPrint(ctx){
 }
 
 /* ---------- РУЧНОЙ ГЕНЕРАТОР: собрать ctx ---------- */
+/* ===== ЭТИКЕТКИ ДЛЯ НАКЛЕЕК ===== */
+var LBL_SIZES={
+  a6:{w:105,h:148,max:4,fs:7.6,pad:5,sheetW:210},
+  a5:{w:210,h:148,max:2,fs:9,pad:8,sheetW:210},
+  a4:{w:210,h:287,max:1,fs:12,pad:14,sheetW:210}
+};
+var lblSize='a6';
+function declLabelInner(p,opts){
+  var s=sellerData();
+  var algNames=declAlgNames(p.alg);
+  var nutrParts=[];
+  if(p.nutr){
+    if(p.nutr.energy)nutrParts.push('Е '+esc(p.nutr.energy));
+    if(p.nutr.protein)nutrParts.push('Б '+esc(p.nutr.protein));
+    if(p.nutr.fat)nutrParts.push('Ж '+esc(p.nutr.fat));
+    if(p.nutr.carb)nutrParts.push('У '+esc(p.nutr.carb));
+    if(p.nutr.salt)nutrParts.push('соль '+esc(p.nutr.salt));
+  }
+  var nutr=nutrParts.length?('<div class="ln">Nutr./Пищ.ц. (100g): '+nutrParts.join(' · ')+'</div>'):'';
+  var sastav='';
+  if(p.sastavSr)sastav+='<b>Sastav:</b> '+esc(p.sastavSr)+' ';
+  if(p.sastavRu)sastav+='<span class="ru"><b>Состав:</b> '+esc(p.sastavRu)+'</span>';
+  var shelf=[];if(p.shelfSr)shelf.push(esc(p.shelfSr));if(p.shelfRu&&p.shelfRu!==p.shelfSr)shelf.push(esc(p.shelfRu));
+  var store=[];if(p.storeSr)store.push(esc(p.storeSr));if(p.storeRu&&p.storeRu!==p.storeSr)store.push(esc(p.storeRu));
+  var meta='';
+  if(opts&&opts.showMeta){
+    var bits=[];if(opts.date)bits.push('Дат./Datum: '+esc(declDateFmt(opts.date)));if(opts.lot)bits.push('LOT '+esc(opts.lot));
+    if(bits.length)meta='<div class="lm">'+bits.join(' · ')+'</div>';
+  }
+  return '<div class="lh"><img class="llogo" src="'+BV_LOGO_PNG+'" alt=""><div class="lt"><b>'+esc(p.name)+'</b>'+(p.weight?'<span class="lnet">'+esc(p.weight)+'</span>':'')+'</div></div>'+
+    (sastav?'<div class="ls">'+sastav+'</div>':'')+
+    '<div class="la"><b>Alergeni / Аллергены:</b> '+algNames+'</div>'+
+    nutr+
+    (shelf.length?'<div class="lr"><b>Rok/Срок:</b> '+shelf.join(' · ')+'</div>':'')+
+    (store.length?'<div class="lr"><b>Čuvanje/Хранение:</b> '+store.join(' · ')+'</div>':'')+
+    meta+
+    '<div class="lf">'+esc(s.name)+' · PIB '+esc(s.pib)+'</div>';
+}
+function declLabelCss(sz){
+  var c=LBL_SIZES[sz];
+  return '<style>'+
+  '*{box-sizing:border-box;margin:0;padding:0;}'+
+  '@page{size:A4;margin:0;}'+
+  'html,body{background:#fff;font-family:"Wix Madefor Text","Helvetica Neue",Arial,sans-serif;color:#1D1D1B;}'+
+  '.sheet{display:flex;flex-wrap:wrap;align-content:flex-start;width:'+c.sheetW+'mm;}'+
+  '.lbl-card{width:'+c.w+'mm;height:'+c.h+'mm;padding:'+c.pad+'mm;border:1px dashed #bbb;overflow:hidden;font-size:'+c.fs+'pt;line-height:1.32;display:flex;flex-direction:column;page-break-inside:avoid;}'+
+  '.lh{display:flex;align-items:center;gap:'+(c.pad*0.7)+'mm;border-bottom:1.5px solid #1D1D1B;padding-bottom:'+(c.pad*0.5)+'mm;margin-bottom:'+(c.pad*0.5)+'mm;}'+
+  '.llogo{width:'+(c.fs*2.6)+'pt;height:'+(c.fs*2.6)+'pt;object-fit:contain;flex-shrink:0;}'+
+  '.lt{flex:1;} .lt b{font-size:'+(c.fs*1.5)+'pt;font-weight:800;display:block;line-height:1.1;} .lnet{font-weight:700;font-size:'+(c.fs*1.05)+'pt;color:#47A2DA;}'+
+  '.ls{margin-bottom:'+(c.pad*0.4)+'mm;} .ls .ru{display:block;color:#555;}'+
+  '.la{margin-bottom:'+(c.pad*0.4)+'mm;} .la b{color:#c0392b;}'+
+  '.ln{margin-bottom:'+(c.pad*0.4)+'mm;color:#333;}'+
+  '.lr{margin-bottom:'+(c.pad*0.25)+'mm;}'+
+  '.lm{margin:'+(c.pad*0.4)+'mm 0;font-weight:700;}'+
+  '.lf{margin-top:auto;font-size:'+(c.fs*0.8)+'pt;color:#666;border-top:1px solid #ddd;padding-top:'+(c.pad*0.4)+'mm;}'+
+  '</style>';
+}
+function declPrintLabels(){
+  var sel=document.getElementById('lblProduct');if(!sel||!sel.value){toast('Выберите продукт');return;}
+  var parts=sel.value.split('|||');
+  var p=declResolve(parts[0],parts[1]||'');
+  if(!(p.sastavSr||p.sastavRu)){toast('У продукта не заполнен состав в справочнике');return;}
+  var c=LBL_SIZES[lblSize];
+  var copies=Math.max(1,Math.min(c.max,parseInt(document.getElementById('lblCopies').value,10)||c.max));
+  var showMeta=document.getElementById('lblShowMeta').checked;
+  var opts={showMeta:showMeta,date:document.getElementById('lblDate').value,lot:document.getElementById('lblLot').value.trim()};
+  var one='<div class="lbl-card">'+declLabelInner(p,opts)+'</div>';
+  var cells='';for(var i=0;i<copies;i++)cells+=one;
+  var w=window.open('','_blank');if(!w){toast('Разрешите всплывающие окна для печати');return;}
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title> </title>'+declLabelCss(lblSize)+'</head><body><div class="sheet">'+cells+'</div>'+
+    '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},300);}</scr'+'ipt></body></html>');
+  w.document.close();
+}
+function fillLabelProducts(){
+  var sel=document.getElementById('lblProduct');if(!sel)return;
+  var cur=sel.value;
+  sel.innerHTML=catalog.map(function(it){
+    var v=it.name+'|||'+(it.weight||'');var k=declKey(it.name,it.weight);var filled=declRefFilled(k);
+    return '<option value="'+esc(v)+'">'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+(filled?'':' (нет данных)')+'</option>';
+  }).join('');
+  if(cur)sel.value=cur;
+}
+function initLabelUi(){
+  fillLabelProducts();
+  var di=document.getElementById('lblDate');if(di&&!di.value)di.valueAsDate=new Date();
+  var seg=document.getElementById('lblSizeSeg');
+  if(seg&&!seg._b){seg._b=1;seg.querySelectorAll('.seg-b').forEach(function(b){b.addEventListener('click',function(){
+    seg.querySelectorAll('.seg-b').forEach(function(x){x.classList.remove('active');});this.classList.add('active');
+    lblSize=this.dataset.size;var c=LBL_SIZES[lblSize];var cp=document.getElementById('lblCopies');cp.max=c.max;cp.value=c.max;});});}
+  var mr=document.getElementById('lblShowMeta');
+  if(mr&&!mr._b){mr._b=1;var row=document.getElementById('lblMetaRow');var upd=function(){row.style.display=mr.checked?'flex':'none';};mr.addEventListener('change',upd);upd();}
+  var pb=document.getElementById('lblPrint');
+  if(pb&&!pb._b){pb._b=1;pb.addEventListener('click',declPrintLabels);}
+}
 function declManualCtx(){
-  var picks=[];document.querySelectorAll('.decl-pick:checked').forEach(function(cb){picks.push(declResolve(cb.dataset.name,cb.dataset.weight));});
+  var picks=[];
+  document.querySelectorAll('.declpick-row').forEach(function(row){
+    var cb=row.querySelector('.decl-pick');
+    if(cb&&cb.checked){
+      var p=declResolve(cb.dataset.name,cb.dataset.weight);
+      var di=row.querySelector('.decl-pdate');
+      p.prodDate=di?di.value:'';
+      picks.push(p);
+    }
+  });
   return {
     recipient:document.getElementById('declRecipient').value.trim(),
     addr:document.getElementById('declAddr').value.trim(),
@@ -6875,37 +7023,82 @@ function declManualCtx(){
 }
 
 /* ---------- ГЕНЕРАЦИЯ ИЗ ЗАКАЗА ---------- */
+var declOrderState=null;
 function openOrderDecl(orderId){
   var o=null;adminOrders.forEach(function(x){if(x.order_id===orderId)o=x;});if(!o){toast('Заказ не найден');return;}
   var prof=(profilesAdmin&&profilesAdmin[o.partner_id])||{};
   var savedParty=(docConfig.parties&&docConfig.parties[o.partner_id])||{};
   var prods=(o.items||[]).map(function(it){return declResolve(it.name,it.weight);});
-  var missing=prods.filter(function(p){return !(p.sastavRu||p.sastavSr);});
-  if(missing.length){
-    if(!confirm('У '+missing.length+' позиц. не заполнен состав в справочнике деклараций. Сформировать всё равно? (можно дозаполнить во вкладке «Декларации»)'))return;
-  }
   docConfig.counters=docConfig.counters||{};
   var num='DEKL-'+new Date().getFullYear()+'-'+String((docConfig.counters.deklaracija||0)+1).padStart(3,'0');
-  var ctx={
+  var today=new Date().toISOString().slice(0,10);
+  declOrderState={
+    orderId:orderId,
     recipient:savedParty.name||prof.company||o.partner||'',
     addr:savedParty.address||(o.delivery&&o.delivery.address)||'',
-    date:new Date().toISOString().slice(0,10),
-    lot:'',number:num,products:prods
+    date:today,lot:'',number:num,products:prods
   };
-  toast('Готовлю PDF…');
+  renderDeclOrderModal();
+  document.getElementById('declOrderModal').style.display='flex';
+}
+function renderDeclOrderModal(){
+  var d=declOrderState;
+  document.getElementById('declOrderTitle').textContent='Декларация — '+d.orderId;
+  var missing=d.products.filter(function(p){return !(p.sastavRu||p.sastavSr);}).length;
+  var warn=missing?('<div class="hint" style="color:#c0392b;margin-bottom:12px;">⚠️ У '+missing+' позиц. не заполнен состав в справочнике. Можно сформировать, но лучше дозаполнить во вкладке «Декларации».</div>'):'';
+  var rows=d.products.map(function(p,i){
+    return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line);">'+
+      '<div style="flex:1;min-width:200px;"><b>'+esc(p.name)+'</b>'+(p.weight?' · '+esc(p.weight):'')+
+        (!(p.sastavRu||p.sastavSr)?' <span class="hint" style="color:#c0392b;">(нет состава)</span>':'')+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px;"><span class="hint" style="white-space:nowrap;">Дата произв.:</span>'+
+      '<input type="date" class="inp declord-pdate" data-i="'+i+'" value="'+(p.prodDate||d.date)+'" style="width:auto;font-size:13px;padding:6px 9px;"></div>'+
+      '</div>';
+  }).join('');
+  document.getElementById('declOrderBody').innerHTML=
+    warn+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">'+
+      '<div class="field" style="flex:1;min-width:160px;margin:0;"><label class="lbl">Получатель</label><input class="inp" id="declOrdRecipient" value="'+esc(d.recipient)+'"></div>'+
+      '<div class="field" style="min-width:140px;margin:0;"><label class="lbl">Дата отгрузки</label><input class="inp" id="declOrdDate" type="date" value="'+esc(d.date)+'"></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'+
+      '<div class="field" style="min-width:140px;margin:0;"><label class="lbl">Партия (LOT)</label><input class="inp" id="declOrdLot" placeholder="общий, необяз."></div>'+
+      '<div class="field" style="min-width:140px;margin:0;"><label class="lbl">№ документа</label><input class="inp" id="declOrdNum" value="'+esc(d.number)+'"></div>'+
+    '</div>'+
+    '<div class="lbl" style="margin:12px 0 4px;">Даты производства по продуктам</div>'+
+    rows;
+  document.getElementById('declOrderFoot').innerHTML=
+    '<button class="btn btn-primary btn-sm" id="declOrdGo">Сформировать и прикрепить</button>'+
+    '<button class="btn btn-line btn-sm" id="declOrdCancel">Отмена</button>'+
+    '<span class="hint" id="declOrdStatus" style="margin-left:auto;"></span>';
+  document.getElementById('declOrdGo').addEventListener('click',doOrderDecl);
+  document.getElementById('declOrdCancel').addEventListener('click',function(){document.getElementById('declOrderModal').style.display='none';});
+}
+function doOrderDecl(){
+  var d=declOrderState;
+  document.querySelectorAll('.declord-pdate').forEach(function(inp){var i=+inp.dataset.i;if(d.products[i])d.products[i].prodDate=inp.value;});
+  d.recipient=document.getElementById('declOrdRecipient').value.trim();
+  d.date=document.getElementById('declOrdDate').value;
+  d.lot=document.getElementById('declOrdLot').value.trim();
+  d.number=document.getElementById('declOrdNum').value.trim()||d.number;
+  var ctx={recipient:d.recipient,addr:d.addr,date:d.date,lot:d.lot,number:d.number,products:d.products};
+  var stat=document.getElementById('declOrdStatus');var go=document.getElementById('declOrdGo');
+  if(stat)stat.textContent='Готовлю PDF…';if(go)go.disabled=true;
   declRenderPdf(ctx,true,function(b64){
-    if(!b64){toast('Не удалось сформировать PDF');return;}
+    if(!b64){if(stat)stat.textContent='Ошибка PDF';if(go)go.disabled=false;return;}
     var fname=declFileName(ctx);
-    cloudOrderDocUpload(orderId,'deklaracija',num,fname,'application/pdf',b64).then(function(j){
+    cloudOrderDocUpload(d.orderId,'deklaracija',ctx.number,fname,'application/pdf',b64).then(function(j){
+      if(go)go.disabled=false;
       if(j&&j.ok&&j.doc){
-        var oo=null;adminOrders.forEach(function(x){if(x.order_id===orderId)oo=x;});if(oo)oo.docs=(oo.docs||[]).concat([j.doc]);
+        var oo=null;adminOrders.forEach(function(x){if(x.order_id===d.orderId)oo=x;});if(oo)oo.docs=(oo.docs||[]).concat([j.doc]);
         docConfig.counters.deklaracija=(docConfig.counters.deklaracija||0)+1;
         cloudPut('docConfig',docConfig);
+        document.getElementById('declOrderModal').style.display='none';
         toast('Декларация прикреплена к заказу');renderAdminOrders();
-      } else toast(j&&j.error==='drive'?'Нет доступа к Drive: authorizeDrive + переразвернуть':'Не удалось прикрепить');
-    }).catch(function(){toast('Ошибка соединения');});
+      } else{if(stat)stat.textContent=(j&&j.error==='drive')?'Нет доступа к Drive':'Не удалось прикрепить';}
+    }).catch(function(){if(go)go.disabled=false;if(stat)stat.textContent='Ошибка соединения';});
   });
 }
+(function(){var c=document.getElementById('declOrderClose');if(c)c.addEventListener('click',function(){document.getElementById('declOrderModal').style.display='none';});})();
 
 /* ---------- инициализация таба ---------- */
 function declCloudReload(cb){
@@ -6928,7 +7121,8 @@ function declCloudReload(cb){
 }
 function initDeclTab(){
   renderDeclPick();
-  declCloudReload(function(){renderDeclRef();});
+  declCloudReload(function(){renderDeclRef();fillLabelProducts();});
+  initLabelUi();
   var di=document.getElementById('declDate');if(di&&!di.value)di.valueAsDate=new Date();
   var lo=document.getElementById('declLot');if(lo&&!lo.value)lo.value=declLotFromDate(di?di.value:'');
   var nu=document.getElementById('declNum');if(nu&&!nu.value)nu.value=declNextNum();
