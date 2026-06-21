@@ -4322,7 +4322,7 @@
 
     <div class="card">
       <div class="cat-title" style="margin-top:0;">Этикетки для наклеек / Nalepnice</div>
-      <p class="hint" style="margin-bottom:12px;">Компактная декларация на 1 продукт под самоклеящиеся этикетки. Лист A4 заполняется копиями: A6 — 4 шт, A5 — 2 шт, A4 — 1 шт. Данные берутся из справочника выше.</p>
+      <p class="hint" style="margin-bottom:12px;">Компактная декларация на 1 продукт под самоклеящиеся этикетки. Лист A4 заполняется копиями: A7 — 8 шт, A6 — 4 шт, A5 — 2 шт, A4 — 1 шт. Данные берутся из справочника выше.</p>
       <div class="field" style="margin:0;">
         <label class="lbl">Продукт</label>
         <select class="inp" id="lblProduct" style="width:100%;"></select>
@@ -4331,14 +4331,15 @@
         <div class="field" style="margin:0;">
           <label class="lbl">Размер этикетки</label>
           <div class="seg" id="lblSizeSeg">
-            <button class="seg-b active" data-size="a6">A6 (105×148)</button>
+            <button class="seg-b active" data-size="a7">A7 (105×74)</button>
+            <button class="seg-b" data-size="a6">A6 (105×148)</button>
             <button class="seg-b" data-size="a5">A5 (210×148)</button>
             <button class="seg-b" data-size="a4">A4</button>
           </div>
         </div>
         <div class="field" style="margin:0;min-width:130px;">
           <label class="lbl">Копий на листе</label>
-          <input class="inp" id="lblCopies" type="number" min="1" max="4" value="4" style="width:110px;">
+          <input class="inp" id="lblCopies" type="number" min="1" max="8" value="8" style="width:110px;">
         </div>
         <label class="chk" style="margin-bottom:1px;"><input type="checkbox" id="lblShowMeta"><span>Печатать дату и партию (LOT)</span></label>
       </div>
@@ -6940,11 +6941,12 @@ function declPrint(ctx){
 /* ---------- РУЧНОЙ ГЕНЕРАТОР: собрать ctx ---------- */
 /* ===== ЭТИКЕТКИ ДЛЯ НАКЛЕЕК ===== */
 var LBL_SIZES={
+  a7:{w:105,h:74,max:8,fs:7,pad:3.5,sheetW:210},
   a6:{w:105,h:148,max:4,fs:9.5,pad:5,sheetW:210},
   a5:{w:210,h:148,max:2,fs:11.5,pad:8,sheetW:210},
   a4:{w:210,h:287,max:1,fs:13.5,pad:14,sheetW:210}
 };
-var lblSize='a6';
+var lblSize='a7';
 function declLabelInner(p,opts){
   var s=sellerData();
   var algNames=declAlgNames(p.alg);
