@@ -4449,9 +4449,12 @@ var DEFAULT_SELLER={
   city:'11070 Novi Beograd',
   mb:'67411315',pib:'114222897',tr:'200-3781700101033-06'
 };
-var docConfig={seller:null,counters:{predracun:0,otpremnica:0},parties:{},declProducts:{}};
+var docConfig={seller:null,counters:{predracun:0,otpremnica:0},parties:{}};
+var declProducts={};
 function sellerData(){return (docConfig.seller&&docConfig.seller.name)?docConfig.seller:DEFAULT_SELLER;}
 function applyCloudData(data){
+  var declProductsLegacy=null;
+  if(data.declProducts&&typeof data.declProducts==='object')declProducts=data.declProducts;
   if(data.catalog&&data.catalog.length){
     var photoByKey={};catalog.forEach(function(it){photoByKey[it.name+'|'+it.weight]=it.photo;});
     catalog=data.catalog.map(function(it){var c=JSON.parse(JSON.stringify(it));if(!c.id)c.id=uid();
@@ -4476,8 +4479,10 @@ function applyCloudData(data){
     if(!docConfig.counters)docConfig.counters={predracun:0,otpremnica:0};
     if(!docConfig.parties)docConfig.parties={};
     if(!docConfig.seller)docConfig.seller=null;
-    if(!docConfig.declProducts||typeof docConfig.declProducts!=='object')docConfig.declProducts={};
+    // миграция: старый справочник лежал внутри docConfig
+    if(docConfig.declProducts&&typeof docConfig.declProducts==='object')declProductsLegacy=docConfig.declProducts;
   }
+  if(declProductsLegacy&&!Object.keys(declProducts).length)declProducts=declProductsLegacy;
   if(data.foot){for(var fk in DEFAULT_FOOT)if(data.foot[fk]!=null)footData[fk]=data.foot[fk];}
 }
 function rerenderAll(){renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();refreshOfferRefs();}
@@ -6654,7 +6659,7 @@ function bootApp(){
 }
 /* ============================================================
    ===== МОДУЛЬ ДЕКЛАРАЦИЙ / DEKLARACIJE =====
-   Справочник по продуктам (docConfig.declProducts), ручной
+   Справочник по продуктам (отдельный ключ declProducts), ручной
    генератор и генерация из заказа. PDF — общий конвейер
    html2canvas + jsPDF. Прикрепление — cloudOrderDocUpload.
    ============================================================ */
@@ -6684,8 +6689,7 @@ function declFileName(ctx){var d=ctx.date?new Date(ctx.date+'T00:00:00'):new Dat
 function declBumpCounter(){docConfig.counters=docConfig.counters||{};docConfig.counters.deklaracija=(docConfig.counters.deklaracija||0)+1;cloudPut('docConfig',docConfig);}
 function declKey(name,weight){return String(name||'')+'|'+String(weight||'');}
 function declGet(name,weight){
-  docConfig.declProducts=docConfig.declProducts||{};
-  return docConfig.declProducts[declKey(name,weight)]||null;
+  return declProducts[declKey(name,weight)]||null;
 }
 /* Объединяет данные товара каталога + справочник деклараций в готовую запись */
 function declResolve(name,weight){
@@ -6708,10 +6712,9 @@ function declResolve(name,weight){
 function renderDeclRef(){
   var w=document.getElementById('declRef');if(!w)return;
   if(!catalog.length){w.innerHTML='<div class="hint">Сначала добавьте товары в прайс-лист.</div>';return;}
-  docConfig.declProducts=docConfig.declProducts||{};
   var h='';
   catalog.forEach(function(it){
-    var k=declKey(it.name,it.weight),d=docConfig.declProducts[k]||{};
+    var k=declKey(it.name,it.weight),d=declProducts[k]||{};
     var alg=Array.isArray(d.alg)?d.alg:[];
     var algBoxes=DECL_ALLERGENS.map(function(a){
       return '<label class="chk'+(alg.indexOf(a[0])>=0?' on':'')+'" style="font-size:12.5px;padding:6px 10px;">'+
@@ -6758,8 +6761,8 @@ function renderDeclRef(){
     if(this.checked){if(rec.alg.indexOf(a)<0)rec.alg.push(a);}else rec.alg=rec.alg.filter(function(x){return x!==a;});
     this.closest('.chk').classList.toggle('on',this.checked);});});
 }
-function declRefFilled(k){var d=docConfig.declProducts[k];return d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length));}
-function ensureDeclRec(k){docConfig.declProducts=docConfig.declProducts||{};if(!docConfig.declProducts[k])docConfig.declProducts[k]={alg:[],nutr:{}};return docConfig.declProducts[k];}
+function declRefFilled(k){var d=declProducts[k];return d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length));}
+function ensureDeclRec(k){if(!declProducts[k])declProducts[k]={alg:[],nutr:{}};return declProducts[k];}
 
 /* ---------- ручной выбор продуктов ---------- */
 function renderDeclPick(){
@@ -6912,7 +6915,15 @@ function initDeclTab(){
   var upd=document.getElementById('declUpdated');
   var sv=document.getElementById('declSave');
   if(sv&&!sv._b){sv._b=1;sv.addEventListener('click',function(){
-    cloudPut('docConfig',docConfig);if(upd)upd.textContent='Сохранено '+new Date().toLocaleTimeString('ru-RU');toast('Справочник сохранён');renderDeclRef();});}
+    if(!GAS_URL||cloudState!=='on'){toast('Облако не подключено — справочник НЕ сохранён. Подключите облако (кнопка «Облако…») и сохраните снова.');return;}
+    sv.disabled=true;sv.textContent='Сохраняю…';
+    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({master:MASTER,key:'declProducts',value:declProducts})})
+    .then(function(r){return r.json();}).then(function(j){
+      sv.disabled=false;sv.textContent='Сохранить справочник';
+      if(j&&j.ok){setSync('on');if(upd)upd.textContent='Сохранено '+new Date().toLocaleTimeString('ru-RU');toast('Справочник сохранён в облако');renderDeclRef();}
+      else{setSync('err');toast('НЕ сохранилось: '+((j&&j.error)||'ответ сервера без ok'));}
+    }).catch(function(){sv.disabled=false;sv.textContent='Сохранить справочник';setSync('err','Не сохранилось');toast('НЕ сохранилось — ошибка соединения');});});}
   var pr=document.getElementById('declPrint');
   if(pr&&!pr._b){pr._b=1;pr.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}declPrint(c);});}
   var pf=document.getElementById('declPdf');
