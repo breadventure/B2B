@@ -4316,7 +4316,6 @@
       <div class="lbl" style="margin:14px 0 8px;">Продукты в декларации</div>
       <div id="declPick" style="display:flex;flex-direction:column;gap:7px;"></div>
       <div class="actions" style="margin-top:14px;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-line btn-sm" id="declPrint">🖨 Печать</button>
         <button class="btn btn-primary btn-sm" id="declPdf">⬇ Скачать PDF</button>
       </div>
     </div>
@@ -6851,16 +6850,11 @@ function declPdfCss(){return '<style>'+
   '.pblock{border:1px solid #e6e3d6;border-radius:9px;padding:12px 15px;margin-bottom:13px;page-break-inside:avoid;} .pblock h3{font-size:17px;font-weight:800;margin-bottom:6px;}'+
   '.drow{display:flex;gap:10px;padding:5px 0;border-top:1px solid #eee;font-size:12px;} .drow:first-of-type{border-top:none;} .drow .lbl3{width:40%;flex-shrink:0;color:#555;} .drow .lbl3 b{display:block;color:#1D1D1B;font-weight:700;} .drow .val{flex:1;font-weight:500;color:#1D1D1B;} .drow .ru{display:block;color:#555;font-weight:400;font-size:11px;} .alg b{color:#c0392b;}'+
   '.ntable{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px;} .ntable td{border:1px solid #e6e3d6;padding:3px 7px;color:#1D1D1B;} .ntable td:last-child{text-align:right;font-weight:700;width:90px;} .ntable .caphdr{background:#f4f3e9;font-weight:700;font-size:10px;text-transform:uppercase;}'+
-  '.dfoot{margin-top:16px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #e6e3d6;padding-top:12px;} .dfoot .made{font-size:10.5px;color:#444;max-width:62%;line-height:1.5;} .dsig{text-align:center;font-size:11px;color:#444;} .dsig .ln{width:170px;border-top:1px solid #1D1D1B;margin-bottom:4px;height:30px;}'+
+  '.dfoot{margin-top:16px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #e6e3d6;padding-top:12px;} .dfoot .made{font-size:10.5px;color:#444;max-width:62%;line-height:1.5;} .dsig{text-align:center;font-size:11px;color:#444;display:flex;flex-direction:column;align-items:center;} .dsig .sigspace{height:42px;} .dsig .ln{width:190px;border-top:1px solid #1D1D1B;} .dsig .sigcap{margin-top:5px;}'+
   '.dnote{margin-top:10px;font-size:9.5px;color:#777;}'+
   '</style>';}
-function declBuildHTML(ctx){
-  var s=sellerData();
-  var blocks=ctx.products.map(declProdBlock).join('')||'<div style="text-align:center;color:#888;padding:18px;">Нет продуктов</div>';
-  var made='<b>Произвођач / Производитель:</b><br>'+esc(s.name)+'<br>'+esc(s.address)+', '+esc(s.city)+'<br>'+
-    'MB: '+esc(s.mb)+' · PIB: '+esc(s.pib)+'';
-  return declPdfCss()+'<div class="ddoc">'+
-    '<div class="dh"><div class="brand"><div class="blogo"><img src="'+BV_LOGO_PNG+'" alt=""></div>'+
+function declHeaderHtml(ctx){
+  return '<div class="dh"><div class="brand"><div class="blogo"><img src="'+BV_LOGO_PNG+'" alt=""></div>'+
       '<div class="nm">BreadVenture<small>Занатска пекара · Ремесленная пекарня</small></div></div>'+
       '<div class="no">№ '+esc(ctx.number||'—')+'<br>'+esc(declDateFmt(ctx.date))+'</div></div>'+
     '<div class="dtit">Декларација о производу<small>Декларация о продукте</small></div>'+
@@ -6869,35 +6863,72 @@ function declBuildHTML(ctx){
       '<div><div class="k">Адреса / Адрес</div><div class="v">'+(esc(ctx.addr)||'—')+'</div></div>'+
       '<div><div class="k">Датум / Дата отгрузки</div><div class="v">'+esc(declDateFmt(ctx.date))+'</div></div>'+
       '<div><div class="k">Шаржа / Партия (LOT)</div><div class="v">'+(esc(ctx.lot)||'—')+'</div></div>'+
-    '</div>'+blocks+
-    '<div class="dfoot"><div class="made">'+made+'</div><div class="dsig"><div class="ln"></div>Потпис / Подпись · М.П.</div></div>'+
-    '<div class="dnote">Декларација прати испоруку. Квалитет се гарантује у моменту предаје. / Декларация сопровождает поставку; качество гарантируется в момент передачи.</div>'+
     '</div>';
+}
+function declFooterHtml(ctx){
+  var s=sellerData();
+  var made='<b>Произвођач / Производитель:</b><br>'+esc(s.name)+'<br>'+esc(s.address)+', '+esc(s.city)+'<br>'+
+    'MB: '+esc(s.mb)+' · PIB: '+esc(s.pib)+'';
+  return '<div class="dfoot"><div class="made">'+made+'</div><div class="dsig"><div class="sigspace"></div><div class="ln"></div><div class="sigcap">Потпис / Подпись · М.П.</div></div></div>'+
+    '<div class="dnote">Декларација прати испоруку. Квалитет се гарантује у моменту предаје. / Декларация сопровождает поставку; качество гарантируется в момент передачи.</div>';
+}
+function declBuildHTML(ctx){
+  var blocks=ctx.products.map(declProdBlock).join('')||'<div style="text-align:center;color:#888;padding:18px;">Нет продуктов</div>';
+  return declPdfCss()+'<div class="ddoc">'+declHeaderHtml(ctx)+blocks+declFooterHtml(ctx)+'</div>';
 }
 function declDateFmt(iso){if(!iso)return new Date().toLocaleDateString('ru-RU');var p=String(iso).slice(0,10).split('-');return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso;}
 
 /* ---------- РЕНДЕР PDF (общий конвейер) ---------- */
-function declRenderPdf(ctx,returnB64,cb){
-  if(!window.html2canvas||!(window.jspdf&&window.jspdf.jsPDF)){toast('Не загрузились библиотеки PDF — обновите страницу');return;}
+function declRenderPiece(html,cb){
   var holder=document.createElement('div');
   holder.style.cssText='position:fixed;left:-9999px;top:0;width:760px;background:#fff;';
-  holder.innerHTML=declBuildHTML(ctx);
+  holder.innerHTML=declPdfCss()+'<div class="ddoc" style="padding:0;width:760px;">'+html+'</div>';
   document.body.appendChild(holder);
-  var node=holder.querySelector('.ddoc');
-  var fin=function(){try{document.body.removeChild(holder);}catch(e){}};
+  var node=holder.lastChild;
   (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){
     return window.html2canvas(node,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:760});
-  }).then(function(canvas){
-    var jsPDF=window.jspdf.jsPDF,pdf=new jsPDF('p','mm','a4');
-    var pw=210,ph=297,iw=pw,ih=canvas.height*iw/canvas.width;
-    if(ih<=ph){pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,iw,ih);}
-    else{var pxPer=canvas.width/pw,pagePx=ph*pxPer,y=0;
-      while(y<canvas.height){var slice=Math.min(pagePx,canvas.height-y);var cv=document.createElement('canvas');cv.width=canvas.width;cv.height=slice;cv.getContext('2d').drawImage(canvas,0,y,canvas.width,slice,0,0,canvas.width,slice);
-        if(y>0)pdf.addPage();pdf.addImage(cv.toDataURL('image/jpeg',0.95),'JPEG',0,0,iw,slice/pxPer);y+=slice;}}
-    fin();
+  }).then(function(canvas){try{document.body.removeChild(holder);}catch(e){}cb(canvas);})
+   .catch(function(){try{document.body.removeChild(holder);}catch(e){}cb(null);});
+}
+function declRenderPdf(ctx,returnB64,cb){
+  if(!window.html2canvas||!(window.jspdf&&window.jspdf.jsPDF)){toast('Не загрузились библиотеки PDF — обновите страницу');return;}
+  var jsPDF=window.jspdf.jsPDF,pdf=new jsPDF('p','mm','a4');
+  var pageW=210,pageH=297,margin=12,usableW=pageW-2*margin,gap=4;
+  var y=margin,first=true;
+  var pieces=[declHeaderHtml(ctx)].concat((ctx.products||[]).map(declProdBlock)).concat([declFooterHtml(ctx)]);
+  var i=0;
+  function finish(){
     if(returnB64){var ds=pdf.output('datauristring');var ix=ds.indexOf('base64,');cb(ix>=0?ds.slice(ix+7):'');}
     else{pdf.save(declFileName(ctx));if(cb)cb();}
-  }).catch(function(e){fin();toast('Не удалось сформировать PDF');});
+  }
+  function step(){
+    if(i>=pieces.length){finish();return;}
+    declRenderPiece(pieces[i],function(canvas){
+      if(canvas&&canvas.height){
+        var imgW=usableW,imgH=canvas.height*imgW/canvas.width;
+        // блок не влезает в остаток страницы — переносим целиком
+        if(!first&&(y+imgH>pageH-margin)){pdf.addPage();y=margin;}
+        // если блок выше целой страницы (очень длинный) — режем его постранично
+        if(imgH>pageH-2*margin){
+          var pxPerMm=canvas.width/imgW,pageContentPx=(pageH-2*margin)*pxPerMm,sy=0;
+          while(sy<canvas.height){
+            if(y>margin){pdf.addPage();y=margin;}
+            var sliceH=Math.min(pageContentPx,canvas.height-sy);
+            var cv=document.createElement('canvas');cv.width=canvas.width;cv.height=sliceH;
+            cv.getContext('2d').drawImage(canvas,0,sy,canvas.width,sliceH,0,0,canvas.width,sliceH);
+            pdf.addImage(cv.toDataURL('image/jpeg',0.95),'JPEG',margin,y,imgW,sliceH/pxPerMm);
+            y+=sliceH/pxPerMm+gap;sy+=sliceH;
+          }
+        } else {
+          pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',margin,y,imgW,imgH);
+          y+=imgH+gap;
+        }
+        first=false;
+      }
+      i++;step();
+    });
+  }
+  step();
 }
 function declPrint(ctx){
   var w=window.open('','_blank');if(!w){toast('Разрешите всплывающие окна для печати');return;}
