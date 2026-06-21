@@ -4284,9 +4284,11 @@
     <div class="card">
       <div class="cat-title" style="margin-top:0;">Справочник деклараций / Deklaracije proizvoda</div>
       <p class="hint" style="margin-bottom:14px;">По каждому продукту заполните состав, аллергены и пищевую ценность на двух языках. Состав подтягивается из прайс-листа (поля «Состав»), здесь можно уточнить. Эти данные используются и в ручной декларации, и при генерации декларации из заказа. Реквизиты производителя берутся из настроек документов (Партнёры → реквизиты компании).</p>
+      <div id="declCloudStat" class="hint" style="margin:-6px 0 12px;font-weight:600;">Облако: проверяю…</div>
       <div id="declRef"></div>
       <div class="actions" style="margin-top:12px;border-top:1px solid var(--line);padding-top:14px;align-items:center;gap:12px;">
         <button class="btn btn-primary btn-sm" id="declSave">Сохранить справочник</button>
+        <button class="btn btn-line btn-sm" id="declReload">🔄 Обновить из облака</button>
         <span class="hint" id="declUpdated"></span>
       </div>
     </div>
@@ -6906,8 +6908,25 @@ function openOrderDecl(orderId){
 }
 
 /* ---------- инициализация таба ---------- */
+function declCloudReload(cb){
+  var st=document.getElementById('declCloudStat');
+  if(!GAS_URL||cloudState!=='on'){if(st){st.textContent='⚠️ Облако не подключено — показаны локальные данные';st.style.color='#c0392b';}if(cb)cb(false);return;}
+  if(st){st.textContent='Облако: загружаю…';st.style.color='';}
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({master:MASTER,pull:true})}).then(function(r){return r.json();}).then(function(j){
+    var dp=(j&&j.ok&&j.data&&j.data.declProducts&&typeof j.data.declProducts==='object')?j.data.declProducts:null;
+    if(dp)declProducts=dp;
+    var n=dp?Object.keys(dp).filter(function(k){var d=dp[k];return d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length)||(d.nutr&&Object.keys(d.nutr).length));}).length:0;
+    if(st){
+      if(dp){st.textContent='✓ В облаке заполнено продуктов: '+n;st.style.color='#1e7e34';}
+      else{st.textContent='✗ В облаке ключа declProducts НЕТ — сервер не записал (нужно обновить Code.gs + Новая версия развёртывания)';st.style.color='#c0392b';}
+    }
+    if(cb)cb(true,n,!!dp);
+  }).catch(function(){if(st){st.textContent='⚠️ Ошибка соединения с облаком';st.style.color='#c0392b';}if(cb)cb(false);});
+}
 function initDeclTab(){
-  renderDeclRef();renderDeclPick();
+  renderDeclPick();
+  declCloudReload(function(){renderDeclRef();});
   var di=document.getElementById('declDate');if(di&&!di.value)di.valueAsDate=new Date();
   var lo=document.getElementById('declLot');if(lo&&!lo.value)lo.value=declLotFromDate(di?di.value:'');
   var nu=document.getElementById('declNum');if(nu&&!nu.value)nu.value=declNextNum();
@@ -6934,6 +6953,8 @@ function initDeclTab(){
       else{setSync('err');
         toast('⚠️ Сервер НЕ записал справочник. Нужно обновить Code.gs: в ALLOWED_KEYS добавить declProducts и сделать Развернуть → Новая версия.');}
     }).catch(function(e){sv.disabled=false;sv.textContent='Сохранить справочник';setSync('err','Не сохранилось');toast('НЕ сохранилось: '+(e&&e.message||'ошибка соединения'));});});}
+  var rl=document.getElementById('declReload');
+  if(rl&&!rl._b){rl._b=1;rl.addEventListener('click',function(){declCloudReload(function(){renderDeclRef();});});}
   var pr=document.getElementById('declPrint');
   if(pr&&!pr._b){pr._b=1;pr.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}declPrint(c);});}
   var pf=document.getElementById('declPdf');
