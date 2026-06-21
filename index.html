@@ -3983,6 +3983,7 @@
     <button class="tab" data-tab="subs">Регулярные</button>
     <button class="tab" data-tab="partners">Партнёры</button>
     <button class="tab" data-tab="care">Хранение</button>
+    <button class="tab" data-tab="declar">Декларации</button>
   </nav>
 
   <!-- OFFER -->
@@ -4279,6 +4280,38 @@
     </div>
   </section>
 
+  <section class="panel" id="panel-declar">
+    <div class="card">
+      <div class="cat-title" style="margin-top:0;">Справочник деклараций / Deklaracije proizvoda</div>
+      <p class="hint" style="margin-bottom:14px;">По каждому продукту заполните состав, аллергены и пищевую ценность на двух языках. Состав подтягивается из прайс-листа (поля «Состав»), здесь можно уточнить. Эти данные используются и в ручной декларации, и при генерации декларации из заказа. Реквизиты производителя берутся из настроек документов (Партнёры → реквизиты компании).</p>
+      <div id="declRef"></div>
+      <div class="actions" style="margin-top:12px;border-top:1px solid var(--line);padding-top:14px;align-items:center;gap:12px;">
+        <button class="btn btn-primary btn-sm" id="declSave">Сохранить справочник</button>
+        <span class="hint" id="declUpdated"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="cat-title" style="margin-top:0;">Собрать декларацию вручную / Ručno</div>
+      <p class="hint" style="margin-bottom:12px;">Для печати или PDF без привязки к заказу. Отметьте продукты, заполните получателя и партию.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <div class="field" style="flex:1;min-width:200px;margin:0;"><label class="lbl">Получатель — ресторан</label><input class="inp" id="declRecipient" placeholder="нпр. Restoran Dva Jelena"></div>
+        <div class="field" style="flex:1;min-width:160px;margin:0;"><label class="lbl">Адрес доставки</label><input class="inp" id="declAddr" placeholder="ул. …"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+        <div class="field" style="min-width:150px;margin:0;"><label class="lbl">Дата отгрузки</label><input class="inp" id="declDate" type="date"></div>
+        <div class="field" style="min-width:130px;margin:0;"><label class="lbl">Партия (LOT)</label><input class="inp" id="declLot" placeholder="нпр. 210626"></div>
+        <div class="field" style="min-width:130px;margin:0;"><label class="lbl">№ документа</label><input class="inp" id="declNum" placeholder="DEKL-2026-001"></div>
+      </div>
+      <div class="lbl" style="margin:14px 0 8px;">Продукты в декларации</div>
+      <div id="declPick" style="display:flex;flex-direction:column;gap:7px;"></div>
+      <div class="actions" style="margin-top:14px;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-line btn-sm" id="declPrint">🖨 Печать</button>
+        <button class="btn btn-primary btn-sm" id="declPdf">⬇ Скачать PDF</button>
+      </div>
+    </div>
+  </section>
+
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -4416,7 +4449,7 @@ var DEFAULT_SELLER={
   city:'11070 Novi Beograd',
   mb:'67411315',pib:'114222897',tr:'200-3781700101033-06'
 };
-var docConfig={seller:null,counters:{predracun:0,otpremnica:0},parties:{}};
+var docConfig={seller:null,counters:{predracun:0,otpremnica:0},parties:{},declProducts:{}};
 function sellerData(){return (docConfig.seller&&docConfig.seller.name)?docConfig.seller:DEFAULT_SELLER;}
 function applyCloudData(data){
   if(data.catalog&&data.catalog.length){
@@ -4443,6 +4476,7 @@ function applyCloudData(data){
     if(!docConfig.counters)docConfig.counters={predracun:0,otpremnica:0};
     if(!docConfig.parties)docConfig.parties={};
     if(!docConfig.seller)docConfig.seller=null;
+    if(!docConfig.declProducts||typeof docConfig.declProducts!=='object')docConfig.declProducts={};
   }
   if(data.foot){for(var fk in DEFAULT_FOOT)if(data.foot[fk]!=null)footData[fk]=data.foot[fk];}
 }
@@ -5503,7 +5537,7 @@ function cloudSetPayment(orderId,paid,dueDate){
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,setPayment:true,order_id:orderId,paid:!!paid,dueDate:dueDate||''})}).then(function(r){return r.json();});
 }
-var ORD_DOC={predracun:'Предсчёт (predračun)',otpremnica:'Отпремница',invoice:'Счёт',other:'Документ'};
+var ORD_DOC={predracun:'Предсчёт (predračun)',otpremnica:'Отпремница',deklaracija:'Декларация',invoice:'Счёт',other:'Документ'};
 function cloudOrderDoc(orderId,type,title,url){
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,orderDoc:true,order_id:orderId,docType:type,docTitle:title,docUrl:url})}).then(function(r){return r.json();});
@@ -5541,7 +5575,7 @@ function renderOrdersFilter(){
   f.querySelectorAll('[data-st]').forEach(function(b){b.addEventListener('click',function(){ordersFilterSt=this.dataset.st;renderAdminOrders();});});
 }
 /* ===== Генератор документов: предрачун / отпремница ===== */
-var DOC_KIND={predracun:{ru:'Предрачун',sr:'PREDRAČUN'},otpremnica:{ru:'Отпремница',sr:'OTPREMNICA'}};
+var DOC_KIND={predracun:{ru:'Предрачун',sr:'PREDRAČUN'},otpremnica:{ru:'Отпремница',sr:'OTPREMNICA'},deklaracija:{ru:'Декларация',sr:'DEKLARACIJA'}};
 var dgState=null;
 function fmtRs(n,dec){dec=(dec==null?2:dec);var s=(Number(n)||0).toFixed(dec);var p=s.split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,'.');return p[0]+(p[1]?(','+p[1]):'');}
 function dgMatchCatalog(name,weight){var f=null;catalog.forEach(function(it){if(it.name===name&&(it.weight||'')===(weight||''))f=it;});if(!f)catalog.forEach(function(it){if(it.name===name)f=it;});return f;}
@@ -5817,7 +5851,7 @@ function renderAdminOrders(){
       h+='<div style="margin-top:10px;"><button class="btn btn-line btn-sm o-edit">✏️ Редактировать позиции</button></div>';
       h+='<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:11px;">'+
          '<div class="lbl" style="margin-bottom:6px;">Документы заказа</div>'+
-         '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px;"><button class="btn btn-line btn-sm dg-make" data-kind="predracun">📄 Предрачун</button><button class="btn btn-line btn-sm dg-make" data-kind="otpremnica">📄 Отпремница</button></div>';
+         '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px;"><button class="btn btn-line btn-sm dg-make" data-kind="predracun">📄 Предрачун</button><button class="btn btn-line btn-sm dg-make" data-kind="otpremnica">📄 Отпремница</button><button class="btn btn-line btn-sm decl-make">📄 Декларация</button></div>';
       if((o.docs||[]).length){
         o.docs.forEach(function(dc){var dt2='';try{dt2=new Date(dc.ts).toLocaleDateString('ru-RU');}catch(e){}
           h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">'+
@@ -5893,6 +5927,7 @@ function renderAdminOrders(){
     var det=card.querySelector('.o-det');
     if(det)det.addEventListener('click',function(){openAdminOrder=(openAdminOrder===id?'':id);renderAdminOrders();});
     card.querySelectorAll('.dg-make').forEach(function(b){b.addEventListener('click',function(){openDocGen(id,this.dataset.kind);});});
+    var declBtn=card.querySelector('.decl-make');if(declBtn)declBtn.addEventListener('click',function(){openOrderDecl(id);});
     var payToggle=card.querySelector('.pay-toggle'),paySave=card.querySelector('.pay-save'),payDue=card.querySelector('.pay-due');
     if(payToggle)payToggle.addEventListener('click',function(){var np=!o.paid;payToggle.disabled=true;
       cloudSetPayment(id,np,payDue?payDue.value:(o.dueDate||'')).then(function(j){
@@ -6617,6 +6652,263 @@ function bootApp(){
     offerLines=[newLine()];renderOffer();
   });
 }
+/* ============================================================
+   ===== МОДУЛЬ ДЕКЛАРАЦИЙ / DEKLARACIJE =====
+   Справочник по продуктам (docConfig.declProducts), ручной
+   генератор и генерация из заказа. PDF — общий конвейер
+   html2canvas + jsPDF. Прикрепление — cloudOrderDocUpload.
+   ============================================================ */
+var DECL_ALLERGENS=[
+  ['gluten','Глутен (житарице)','Глютен (злаки)'],
+  ['jaja','Јаја','Яйца'],
+  ['mleko','Млеко (лактоза)','Молоко (лактоза)'],
+  ['soja','Соја','Соя'],
+  ['orasi','Орашасти плодови','Орехи'],
+  ['kikiriki','Кикирики','Арахис'],
+  ['susam','Сусам','Кунжут'],
+  ['slacica','Сенф','Горчица'],
+  ['celer','Целер','Сельдерей'],
+  ['riba','Риба','Рыба'],
+  ['rak','Ракови','Ракообразные'],
+  ['mekusci','Мекушци','Моллюски'],
+  ['sulfiti','Сулфити (SO₂)','Сульфиты (SO₂)'],
+  ['lupina','Лупина','Люпин']
+];
+var DECL_NUTR=[['energy','Енергија / Энергия'],['fat','Масти / Жиры'],['satfat','— засићене / насыщ.'],
+  ['carb','Угљени хидрати / Углеводы'],['sugar','— шећери / сахара'],['protein','Протеини / Белки'],['salt','Со / Соль']];
+
+function declKey(name,weight){return String(name||'')+'|'+String(weight||'');}
+function declGet(name,weight){
+  docConfig.declProducts=docConfig.declProducts||{};
+  return docConfig.declProducts[declKey(name,weight)]||null;
+}
+/* Объединяет данные товара каталога + справочник деклараций в готовую запись */
+function declResolve(name,weight){
+  var cat=null;catalog.forEach(function(it){if(it.name===name&&(it.weight||'')===(weight||''))cat=it;});
+  if(!cat)catalog.forEach(function(it){if(it.name===name)cat=it;});
+  var d=declGet(name,weight)||(cat?declGet(cat.name,cat.weight):null)||{};
+  return {
+    name:name,weight:(weight||(cat&&cat.weight)||''),
+    sastavRu:(d.sastavRu||(cat&&cat.sostav)||''),
+    sastavSr:(d.sastavSr||(cat&&cat.sostavSr)||''),
+    alg:Array.isArray(d.alg)?d.alg:[],
+    qty:d.qty||(cat&&cat.weight)||'',
+    shelfRu:d.shelfRu||'',shelfSr:d.shelfSr||'',
+    storeRu:d.storeRu||'',storeSr:d.storeSr||'',
+    nutr:d.nutr||{}
+  };
+}
+
+/* ---------- СПРАВОЧНИК (редактор) ---------- */
+function renderDeclRef(){
+  var w=document.getElementById('declRef');if(!w)return;
+  if(!catalog.length){w.innerHTML='<div class="hint">Сначала добавьте товары в прайс-лист.</div>';return;}
+  docConfig.declProducts=docConfig.declProducts||{};
+  var h='';
+  catalog.forEach(function(it){
+    var k=declKey(it.name,it.weight),d=docConfig.declProducts[k]||{};
+    var alg=Array.isArray(d.alg)?d.alg:[];
+    var algBoxes=DECL_ALLERGENS.map(function(a){
+      return '<label class="chk'+(alg.indexOf(a[0])>=0?' on':'')+'" style="font-size:12.5px;padding:6px 10px;">'+
+        '<input type="checkbox" data-k="'+esc(k)+'" data-alg="'+a[0]+'"'+(alg.indexOf(a[0])>=0?' checked':'')+'>'+
+        '<span>'+esc(a[1])+' / '+esc(a[2])+'</span></label>';
+    }).join('');
+    var nutr=d.nutr||{};
+    var nutrInps=DECL_NUTR.map(function(n){
+      return '<div class="field" style="margin:0;"><label class="lbl" style="font-size:10.5px;">'+esc(n[1])+'</label>'+
+        '<input class="inp decl-n" data-k="'+esc(k)+'" data-n="'+n[0]+'" value="'+esc(nutr[n[0]]||'')+'" style="font-size:13px;padding:8px 10px;"></div>';
+    }).join('');
+    h+='<details class="card" style="margin-top:10px;padding:14px 16px;">'+
+      '<summary style="cursor:pointer;font-weight:700;font-size:15px;list-style:none;">'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+
+        (declRefFilled(k)?' <span style="color:var(--blue);font-size:12px;">● заполнено</span>':' <span class="hint" style="font-size:12px;">— не заполнено</span>')+'</summary>'+
+      '<div style="margin-top:12px;">'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+          '<div class="field" style="flex:1;min-width:220px;margin:0;"><label class="lbl">Состав (RU)</label><textarea class="inp decl-f" data-k="'+esc(k)+'" data-f="sastavRu" rows="2" style="resize:vertical;">'+esc(d.sastavRu||it.sostav||'')+'</textarea></div>'+
+          '<div class="field" style="flex:1;min-width:220px;margin:0;"><label class="lbl">Sastav (SR)</label><textarea class="inp decl-f" data-k="'+esc(k)+'" data-f="sastavSr" rows="2" style="resize:vertical;">'+esc(d.sastavSr||it.sostavSr||'')+'</textarea></div>'+
+        '</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">'+
+          '<div class="field" style="min-width:120px;margin:0;"><label class="lbl">Нетто</label><input class="inp decl-f" data-k="'+esc(k)+'" data-f="qty" value="'+esc(d.qty||it.weight||'')+'"></div>'+
+          '<div class="field" style="flex:1;min-width:120px;margin:0;"><label class="lbl">Рок (RU)</label><input class="inp decl-f" data-k="'+esc(k)+'" data-f="shelfRu" value="'+esc(d.shelfRu||'')+'" placeholder="3 дня"></div>'+
+          '<div class="field" style="flex:1;min-width:120px;margin:0;"><label class="lbl">Rok (SR)</label><input class="inp decl-f" data-k="'+esc(k)+'" data-f="shelfSr" value="'+esc(d.shelfSr||'')+'" placeholder="3 dana"></div>'+
+        '</div>'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">'+
+          '<div class="field" style="flex:1;min-width:160px;margin:0;"><label class="lbl">Хранение (RU)</label><input class="inp decl-f" data-k="'+esc(k)+'" data-f="storeRu" value="'+esc(d.storeRu||'')+'" placeholder="В сухом месте, до 22 °C"></div>'+
+          '<div class="field" style="flex:1;min-width:160px;margin:0;"><label class="lbl">Čuvanje (SR)</label><input class="inp decl-f" data-k="'+esc(k)+'" data-f="storeSr" value="'+esc(d.storeSr||'')+'" placeholder="Na suvom mestu, do 22 °C"></div>'+
+        '</div>'+
+        '<div class="lbl" style="margin:14px 0 6px;">Аллергены / Alergeni</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+algBoxes+'</div>'+
+        '<div class="lbl" style="margin:14px 0 6px;">Пищевая ценность на 100 g / Nutritivne vrednosti</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">'+nutrInps+'</div>'+
+      '</div></details>';
+  });
+  w.innerHTML=h;
+  /* привязка ввода */
+  w.querySelectorAll('.decl-f').forEach(function(el){el.addEventListener('input',function(){
+    var k=this.dataset.k,f=this.dataset.f;ensureDeclRec(k)[f]=this.value;});});
+  w.querySelectorAll('.decl-n').forEach(function(el){el.addEventListener('input',function(){
+    var rec=ensureDeclRec(this.dataset.k);rec.nutr=rec.nutr||{};rec.nutr[this.dataset.n]=this.value;});});
+  w.querySelectorAll('input[data-alg]').forEach(function(cb){cb.addEventListener('change',function(){
+    var rec=ensureDeclRec(this.dataset.k);rec.alg=Array.isArray(rec.alg)?rec.alg:[];
+    var a=this.dataset.alg;
+    if(this.checked){if(rec.alg.indexOf(a)<0)rec.alg.push(a);}else rec.alg=rec.alg.filter(function(x){return x!==a;});
+    this.closest('.chk').classList.toggle('on',this.checked);});});
+}
+function declRefFilled(k){var d=docConfig.declProducts[k];return d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length));}
+function ensureDeclRec(k){docConfig.declProducts=docConfig.declProducts||{};if(!docConfig.declProducts[k])docConfig.declProducts[k]={alg:[],nutr:{}};return docConfig.declProducts[k];}
+
+/* ---------- ручной выбор продуктов ---------- */
+function renderDeclPick(){
+  var w=document.getElementById('declPick');if(!w)return;
+  if(!catalog.length){w.innerHTML='<div class="hint">Нет товаров в прайс-листе.</div>';return;}
+  w.innerHTML=catalog.map(function(it){var k=declKey(it.name,it.weight);
+    return '<label class="chk" style="justify-content:flex-start;"><input type="checkbox" class="decl-pick" data-name="'+esc(it.name)+'" data-weight="'+esc(it.weight||'')+'"><span>'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+'</span></label>';
+  }).join('');
+}
+
+/* ---------- ПОСТРОЕНИЕ ДОКУМЕНТА ---------- */
+function declAlgNames(alg){
+  if(!alg||!alg.length)return '—';
+  return alg.map(function(a){var x=null;DECL_ALLERGENS.forEach(function(z){if(z[0]===a)x=z;});return x?(x[1]+' / '+x[2]):a;}).join('; ');
+}
+function declBi(sr,ru){var s=esc(sr||'')||'—';if(ru)s+='<span class="ru">'+esc(ru)+'</span>';return s;}
+function declProdBlock(p){
+  var hasNutr=p.nutr&&Object.keys(p.nutr).some(function(k){return p.nutr[k]&&String(p.nutr[k]).trim();});
+  var nutrRows=hasNutr?('<table class="ntable"><tr><td class="caphdr">Нутритивне вредности / Пищевая ценность</td><td class="caphdr">на 100 g</td></tr>'+
+    DECL_NUTR.map(function(n){var v=p.nutr[n[0]];return (v&&String(v).trim())?('<tr><td>'+n[1]+'</td><td>'+esc(v)+'</td></tr>'):'';}).join('')+'</table>'):'';
+  var sastav='';if(p.sastavSr)sastav+=esc(p.sastavSr);if(p.sastavRu)sastav+='<span class="ru">'+esc(p.sastavRu)+'</span>';if(!sastav)sastav='—';
+  function row(ls,lr,v){return '<div class="drow"><div class="lbl3"><b>'+ls+'</b>'+lr+'</div><div class="val">'+v+'</div></div>';}
+  return '<div class="pblock"><h3>'+esc(p.name)+(p.weight?' · '+esc(p.weight):'')+'</h3>'+
+    row('Састав','Состав',sastav)+
+    row('Алергени','Аллергены','<span class="alg"><b>'+declAlgNames(p.alg)+'</b></span>')+
+    row('Нето количина','Нетто',esc(p.qty)||'—')+
+    row('Рок трајања','Срок годности',declBi(p.shelfSr,p.shelfRu))+
+    row('Услови чувања','Условия хранения',declBi(p.storeSr,p.storeRu))+
+    nutrRows+'</div>';
+}
+function declPdfCss(){return '<style>'+
+  '*{box-sizing:border-box;} .ddoc{font-family:"Wix Madefor Text","Helvetica Neue",Arial,sans-serif;color:#1D1D1B;padding:34px 36px;width:760px;background:#fff;font-size:13px;line-height:1.5;}'+
+  '.dh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1D1D1B;padding-bottom:12px;margin-bottom:14px;}'+
+  '.dh .nm{font-size:26px;font-weight:800;letter-spacing:.02em;} .dh .nm small{display:block;font-size:10px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#888;margin-top:5px;}'+
+  '.dh .no{text-align:right;font-size:11.5px;color:#888;}'+
+  '.dtit{text-align:center;font-size:22px;font-weight:800;letter-spacing:.04em;margin-bottom:2px;} .dtit small{display:block;font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#888;margin-top:2px;}'+
+  '.dmeta{display:grid;grid-template-columns:1fr 1fr;gap:5px 22px;margin:16px 0;font-size:12px;} .dmeta .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:#999;font-weight:700;} .dmeta .v{font-weight:600;}'+
+  '.pblock{border:1px solid #e6e3d6;border-radius:9px;padding:12px 15px;margin-bottom:13px;page-break-inside:avoid;} .pblock h3{font-size:17px;font-weight:800;margin-bottom:6px;}'+
+  '.drow{display:flex;gap:10px;padding:5px 0;border-top:1px solid #eee;font-size:12px;} .drow:first-of-type{border-top:none;} .drow .lbl3{width:40%;flex-shrink:0;color:#999;} .drow .lbl3 b{display:block;color:#1D1D1B;font-weight:700;} .drow .val{flex:1;font-weight:500;} .drow .ru{display:block;color:#999;font-weight:400;font-size:11px;} .alg b{color:#c0392b;}'+
+  '.ntable{width:100%;border-collapse:collapse;margin-top:6px;font-size:11px;} .ntable td{border:1px solid #e6e3d6;padding:3px 7px;} .ntable td:last-child{text-align:right;font-weight:700;width:90px;} .ntable .caphdr{background:#f4f3e9;font-weight:700;font-size:10px;text-transform:uppercase;}'+
+  '.dfoot{margin-top:16px;display:flex;justify-content:space-between;align-items:flex-end;border-top:1px solid #e6e3d6;padding-top:12px;} .dfoot .made{font-size:10.5px;color:#666;max-width:62%;line-height:1.5;} .dsig{text-align:center;font-size:11px;} .dsig .ln{width:170px;border-top:1px solid #1D1D1B;margin-bottom:4px;height:30px;}'+
+  '.dnote{margin-top:10px;font-size:9.5px;color:#999;}'+
+  '</style>';}
+function declBuildHTML(ctx){
+  var s=sellerData();
+  var blocks=ctx.products.map(declProdBlock).join('')||'<div style="text-align:center;color:#888;padding:18px;">Нет продуктов</div>';
+  var made='<b>Произвођач / Производитель:</b><br>'+esc(s.name)+'<br>'+esc(s.address)+', '+esc(s.city)+'<br>'+
+    'MB: '+esc(s.mb)+' · PIB: '+esc(s.pib)+'';
+  return declPdfCss()+'<div class="ddoc">'+
+    '<div class="dh"><div class="nm">BreadVenture<small>Занатска пекара · Артизанская пекарня</small></div>'+
+      '<div class="no">№ '+esc(ctx.number||'—')+'<br>'+esc(declDateFmt(ctx.date))+'</div></div>'+
+    '<div class="dtit">Декларација о производу<small>Декларация о продукте</small></div>'+
+    '<div class="dmeta">'+
+      '<div><div class="k">Прималац / Получатель</div><div class="v">'+(esc(ctx.recipient)||'—')+'</div></div>'+
+      '<div><div class="k">Адреса / Адрес</div><div class="v">'+(esc(ctx.addr)||'—')+'</div></div>'+
+      '<div><div class="k">Датум / Дата отгрузки</div><div class="v">'+esc(declDateFmt(ctx.date))+'</div></div>'+
+      '<div><div class="k">Шаржа / Партия (LOT)</div><div class="v">'+(esc(ctx.lot)||'—')+'</div></div>'+
+    '</div>'+blocks+
+    '<div class="dfoot"><div class="made">'+made+'</div><div class="dsig"><div class="ln"></div>Потпис / Подпись · М.П.</div></div>'+
+    '<div class="dnote">Декларација прати испоруку. Квалитет се гарантује у моменту предаје. / Декларация сопровождает поставку; качество гарантируется в момент передачи.</div>'+
+    '</div>';
+}
+function declDateFmt(iso){if(!iso)return new Date().toLocaleDateString('ru-RU');var p=String(iso).slice(0,10).split('-');return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):iso;}
+
+/* ---------- РЕНДЕР PDF (общий конвейер) ---------- */
+function declRenderPdf(ctx,returnB64,cb){
+  if(!window.html2canvas||!(window.jspdf&&window.jspdf.jsPDF)){toast('Не загрузились библиотеки PDF — обновите страницу');return;}
+  var holder=document.createElement('div');
+  holder.style.cssText='position:fixed;left:-9999px;top:0;width:760px;background:#fff;';
+  holder.innerHTML=declBuildHTML(ctx);
+  document.body.appendChild(holder);
+  var node=holder.querySelector('.ddoc');
+  var fin=function(){try{document.body.removeChild(holder);}catch(e){}};
+  (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){
+    return window.html2canvas(node,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:760});
+  }).then(function(canvas){
+    var jsPDF=window.jspdf.jsPDF,pdf=new jsPDF('p','mm','a4');
+    var pw=210,ph=297,iw=pw,ih=canvas.height*iw/canvas.width;
+    if(ih<=ph){pdf.addImage(canvas.toDataURL('image/jpeg',0.95),'JPEG',0,0,iw,ih);}
+    else{var pxPer=canvas.width/pw,pagePx=ph*pxPer,y=0;
+      while(y<canvas.height){var slice=Math.min(pagePx,canvas.height-y);var cv=document.createElement('canvas');cv.width=canvas.width;cv.height=slice;cv.getContext('2d').drawImage(canvas,0,y,canvas.width,slice,0,0,canvas.width,slice);
+        if(y>0)pdf.addPage();pdf.addImage(cv.toDataURL('image/jpeg',0.95),'JPEG',0,0,iw,slice/pxPer);y+=slice;}}
+    fin();
+    if(returnB64){var ds=pdf.output('datauristring');var ix=ds.indexOf('base64,');cb(ix>=0?ds.slice(ix+7):'');}
+    else{pdf.save('Deklaracija_'+String(ctx.number||'').replace(/[^\w\-]/g,'')+'.pdf');}
+  }).catch(function(e){fin();toast('Не удалось сформировать PDF');});
+}
+function declPrint(ctx){
+  var w=window.open('','_blank');if(!w){toast('Разрешите всплывающие окна для печати');return;}
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Декларация</title></head><body style="margin:0;background:#fff;">'+declBuildHTML(ctx)+'<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);}</scr'+'ipt></body></html>');
+  w.document.close();
+}
+
+/* ---------- РУЧНОЙ ГЕНЕРАТОР: собрать ctx ---------- */
+function declManualCtx(){
+  var picks=[];document.querySelectorAll('.decl-pick:checked').forEach(function(cb){picks.push(declResolve(cb.dataset.name,cb.dataset.weight));});
+  return {
+    recipient:document.getElementById('declRecipient').value.trim(),
+    addr:document.getElementById('declAddr').value.trim(),
+    date:document.getElementById('declDate').value,
+    lot:document.getElementById('declLot').value.trim(),
+    number:document.getElementById('declNum').value.trim()||('DEKL-'+new Date().getFullYear()+'-'+String((docConfig.counters&&docConfig.counters.deklaracija||0)+1).padStart(3,'0')),
+    products:picks
+  };
+}
+
+/* ---------- ГЕНЕРАЦИЯ ИЗ ЗАКАЗА ---------- */
+function openOrderDecl(orderId){
+  var o=null;adminOrders.forEach(function(x){if(x.order_id===orderId)o=x;});if(!o){toast('Заказ не найден');return;}
+  var prof=(profilesAdmin&&profilesAdmin[o.partner_id])||{};
+  var savedParty=(docConfig.parties&&docConfig.parties[o.partner_id])||{};
+  var prods=(o.items||[]).map(function(it){return declResolve(it.name,it.weight);});
+  var missing=prods.filter(function(p){return !(p.sastavRu||p.sastavSr);});
+  if(missing.length){
+    if(!confirm('У '+missing.length+' позиц. не заполнен состав в справочнике деклараций. Сформировать всё равно? (можно дозаполнить во вкладке «Декларации»)'))return;
+  }
+  docConfig.counters=docConfig.counters||{};
+  var num='DEKL-'+new Date().getFullYear()+'-'+String((docConfig.counters.deklaracija||0)+1).padStart(3,'0');
+  var ctx={
+    recipient:savedParty.name||prof.company||o.partner||'',
+    addr:savedParty.address||(o.delivery&&o.delivery.address)||'',
+    date:new Date().toISOString().slice(0,10),
+    lot:'',number:num,products:prods
+  };
+  toast('Готовлю PDF…');
+  declRenderPdf(ctx,true,function(b64){
+    if(!b64){toast('Не удалось сформировать PDF');return;}
+    var fname='Deklaracija_'+num.replace(/[^\w\-]/g,'')+'.pdf';
+    cloudOrderDocUpload(orderId,'deklaracija',num,fname,'application/pdf',b64).then(function(j){
+      if(j&&j.ok&&j.doc){
+        var oo=null;adminOrders.forEach(function(x){if(x.order_id===orderId)oo=x;});if(oo)oo.docs=(oo.docs||[]).concat([j.doc]);
+        docConfig.counters.deklaracija=(docConfig.counters.deklaracija||0)+1;
+        cloudPut('docConfig',docConfig);
+        toast('Декларация прикреплена к заказу');renderAdminOrders();
+      } else toast(j&&j.error==='drive'?'Нет доступа к Drive: authorizeDrive + переразвернуть':'Не удалось прикрепить');
+    }).catch(function(){toast('Ошибка соединения');});
+  });
+}
+
+/* ---------- инициализация таба ---------- */
+function initDeclTab(){
+  renderDeclRef();renderDeclPick();
+  var di=document.getElementById('declDate');if(di&&!di.value)di.valueAsDate=new Date();
+  var upd=document.getElementById('declUpdated');
+  var sv=document.getElementById('declSave');
+  if(sv&&!sv._b){sv._b=1;sv.addEventListener('click',function(){
+    cloudPut('docConfig',docConfig);if(upd)upd.textContent='Сохранено '+new Date().toLocaleTimeString('ru-RU');toast('Справочник сохранён');renderDeclRef();});}
+  var pr=document.getElementById('declPrint');
+  if(pr&&!pr._b){pr._b=1;pr.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}declPrint(c);});}
+  var pf=document.getElementById('declPdf');
+  if(pf&&!pf._b){pf._b=1;pf.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}toast('Готовлю PDF…');declRenderPdf(c,false);});}
+}
+(function(){var t=document.querySelector('.tab[data-tab="declar"]');if(t)t.addEventListener('click',initDeclTab);})();
+
 initLock(bootApp);
 </script>
 

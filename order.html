@@ -189,7 +189,7 @@ var ST_SR={submitted:'Nova',confirmed:'Potvrđena',in_production:'U pripremi',pa
 function stName(s){return LANG==='sr'?(ST_SR[s]||s):(ST[s]||s);}
 function catName(cat){return (LANG==='sr'&&CATSR[cat])?CATSR[cat]:cat;}
 function docType(t){return LANG==='sr'?(DOC_T_SR[t]||t):(DOC_T[t]||t);}
-function ORD_DOC_SR(t){var ru={predracun:'Предсчёт (predračun)',otpremnica:'Отпремница',invoice:'Счёт',other:'Документ'};var sr={predracun:'Predračun',otpremnica:'Otpremnica',invoice:'Račun',other:'Dokument'};return LANG==='sr'?(sr[t]||t):(ru[t]||t);}
+function ORD_DOC_SR(t){var ru={predracun:'Предсчёт (predračun)',otpremnica:'Отпремница',deklaracija:'Декларация',invoice:'Счёт',other:'Документ'};var sr={predracun:'Predračun',otpremnica:'Otpremnica',deklaracija:'Deklaracija',invoice:'Račun',other:'Dokument'};return LANG==='sr'?(sr[t]||t):(ru[t]||t);}
 
 var ST={submitted:'Новый',confirmed:'Подтверждён',in_production:'В производстве',packed:'Собран',out_for_delivery:'В доставке',delivered:'Доставлен',cancelled:'Отменён'};
 
