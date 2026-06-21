@@ -6814,7 +6814,7 @@ function declBuildHTML(ctx){
     'MB: '+esc(s.mb)+' · PIB: '+esc(s.pib)+'';
   return declPdfCss()+'<div class="ddoc">'+
     '<div class="dh"><div class="brand"><div class="blogo"><img src="'+BV_LOGO_PNG+'" alt=""></div>'+
-      '<div class="nm">BreadVenture<small>Занатска пекара · Артизанская пекарня</small></div></div>'+
+      '<div class="nm">BreadVenture<small>Занатска пекара · Ремесленная пекарня</small></div></div>'+
       '<div class="no">№ '+esc(ctx.number||'—')+'<br>'+esc(declDateFmt(ctx.date))+'</div></div>'+
     '<div class="dtit">Декларација о производу<small>Декларация о продукте</small></div>'+
     '<div class="dmeta">'+
@@ -6917,13 +6917,23 @@ function initDeclTab(){
   if(sv&&!sv._b){sv._b=1;sv.addEventListener('click',function(){
     if(!GAS_URL||cloudState!=='on'){toast('Облако не подключено — справочник НЕ сохранён. Подключите облако (кнопка «Облако…») и сохраните снова.');return;}
     sv.disabled=true;sv.textContent='Сохраняю…';
+    var expectKeys=Object.keys(declProducts);
     fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({master:MASTER,key:'declProducts',value:declProducts})})
     .then(function(r){return r.json();}).then(function(j){
+      if(!(j&&j.ok))throw new Error((j&&j.error)||'ответ без ok');
+      // ПРОВЕРКА: читаем обратно — реально ли записалось на сервере
+      sv.textContent='Проверяю…';
+      return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({master:MASTER,pull:true})}).then(function(r){return r.json();});
+    }).then(function(pj){
       sv.disabled=false;sv.textContent='Сохранить справочник';
-      if(j&&j.ok){setSync('on');if(upd)upd.textContent='Сохранено '+new Date().toLocaleTimeString('ru-RU');toast('Справочник сохранён в облако');renderDeclRef();}
-      else{setSync('err');toast('НЕ сохранилось: '+((j&&j.error)||'ответ сервера без ok'));}
-    }).catch(function(){sv.disabled=false;sv.textContent='Сохранить справочник';setSync('err','Не сохранилось');toast('НЕ сохранилось — ошибка соединения');});});}
+      var saved=(pj&&pj.ok&&pj.data&&pj.data.declProducts&&typeof pj.data.declProducts==='object')?pj.data.declProducts:null;
+      var ok=saved&&expectKeys.every(function(k){return saved[k]!=null;});
+      if(ok){setSync('on');if(upd)upd.textContent='Сохранено и проверено '+new Date().toLocaleTimeString('ru-RU');toast('✓ Справочник сохранён и проверен на сервере');renderDeclRef();}
+      else{setSync('err');
+        toast('⚠️ Сервер НЕ записал справочник. Нужно обновить Code.gs: в ALLOWED_KEYS добавить declProducts и сделать Развернуть → Новая версия.');}
+    }).catch(function(e){sv.disabled=false;sv.textContent='Сохранить справочник';setSync('err','Не сохранилось');toast('НЕ сохранилось: '+(e&&e.message||'ошибка соединения'));});});}
   var pr=document.getElementById('declPrint');
   if(pr&&!pr._b){pr._b=1;pr.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}declPrint(c);});}
   var pf=document.getElementById('declPdf');
