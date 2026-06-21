@@ -4302,6 +4302,15 @@
     </div>
 
     <div class="card">
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;">
+        <div class="cat-title" style="margin-top:0;">Архив деклараций / Arhiva</div>
+        <button class="btn btn-line btn-sm" id="declArchReload" style="margin-left:auto;">🔄 Обновить</button>
+      </div>
+      <p class="hint" style="margin:6px 0 12px;">Все выставленные декларации — ручные и из заказов. PDF можно пере-скачать.</p>
+      <div id="declArchList"></div>
+    </div>
+
+    <div class="card">
       <div class="cat-title" style="margin-top:0;">Собрать декларацию вручную / Ručno</div>
       <p class="hint" style="margin-bottom:12px;">Для печати или PDF без привязки к заказу. Отметьте продукты, заполните получателя и партию.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -4492,10 +4501,12 @@ var DEFAULT_SELLER={
 };
 var docConfig={seller:null,counters:{predracun:0,otpremnica:0},parties:{}};
 var declProducts={};
+var declArchive=[];
 function sellerData(){return (docConfig.seller&&docConfig.seller.name)?docConfig.seller:DEFAULT_SELLER;}
 function applyCloudData(data){
   var declProductsLegacy=null;
   if(data.declProducts&&typeof data.declProducts==='object')declProducts=data.declProducts;
+  if(Array.isArray(data.declArchive))declArchive=data.declArchive;
   if(data.catalog&&data.catalog.length){
     var photoByKey={};catalog.forEach(function(it){photoByKey[it.name+'|'+it.weight]=it.photo;});
     catalog=data.catalog.map(function(it){var c=JSON.parse(JSON.stringify(it));if(!c.id)c.id=uid();
@@ -6728,6 +6739,66 @@ function declLotFromDate(iso){var d=iso?new Date(iso+'T00:00:00'):new Date();if(
 function declNextNum(){docConfig.counters=docConfig.counters||{};return 'DEKL-'+new Date().getFullYear()+'-'+String((docConfig.counters.deklaracija||0)+1).padStart(3,'0');}
 function declFileName(ctx){var d=ctx.date?new Date(ctx.date+'T00:00:00'):new Date();if(isNaN(d))d=new Date();var ds=('0'+d.getDate()).slice(-2)+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+d.getFullYear();return ('Deklaracija_'+(ctx.number||'')+'_'+ds).replace(/[^\w\-]/g,'_')+'.pdf';}
 function declBumpCounter(){docConfig.counters=docConfig.counters||{};docConfig.counters.deklaracija=(docConfig.counters.deklaracija||0)+1;cloudPut('docConfig',docConfig);}
+/* авто-добавление получателя в партнёры, если его ещё нет */
+function declEnsurePartner(name){
+  name=(name||'').trim();if(!name)return;
+  var norm=name.toLowerCase();
+  var exists=(partners||[]).some(function(p){return (p.name||'').trim().toLowerCase()===norm;});
+  if(exists)return;
+  var code=genCode();var tries=0;
+  while((partners||[]).some(function(p){return p.code===code;})&&tries<20){code=genCode();tries++;}
+  partners.push({id:uid(),name:name,phone:'',code:code,active:true,created:Date.now(),autoFromDecl:true});
+  savePartners();
+  if(typeof renderPartners==='function')try{renderPartners();}catch(e){}
+  toast('Новый партнёр добавлен: '+name+' · код '+code);
+}
+/* запись в архив деклараций */
+function declArchiveAdd(ctx,pdf,source,orderId){
+  declArchive.unshift({
+    ts:new Date().toISOString(),
+    number:ctx.number||'',date:ctx.date||'',
+    recipient:ctx.recipient||'',addr:ctx.addr||'',lot:ctx.lot||'',
+    products:(ctx.products||[]).map(function(p){return {name:p.name,weight:p.weight||'',prodDate:p.prodDate||''};}),
+    url:(pdf&&pdf.url)||'',view:(pdf&&pdf.view)||'',
+    source:source||'manual',orderId:orderId||''
+  });
+  if(declArchive.length>500)declArchive=declArchive.slice(0,500);
+  cloudPut('declArchive',declArchive);
+}
+/* загрузка PDF в Drive (для ручных деклараций) */
+function declDriveUpload(fname,b64,cb){
+  if(!GAS_URL){cb(null);return;}
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({master:MASTER,driveUpload:true,fileName:fname,mime:'application/pdf',dataB64:b64})})
+  .then(function(r){return r.json();}).then(function(j){cb(j&&j.ok?{url:j.download,view:j.view}:null);}).catch(function(){cb(null);});
+}
+/* скачать локально из base64 */
+function declDownloadB64(b64,fname){
+  try{
+    var bin=atob(b64),arr=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+    var blob=new Blob([arr],{type:'application/pdf'}),url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);try{a.remove();}catch(e){}},1500);
+  }catch(e){toast('Не удалось скачать файл');}
+}
+/* рендер архива деклараций */
+function renderDeclArchive(){
+  var w=document.getElementById('declArchList');if(!w)return;
+  if(!declArchive.length){w.innerHTML='<div class="hint">Архив пуст. Выставленные декларации появятся здесь.</div>';return;}
+  w.innerHTML=declArchive.map(function(a){
+    var dt='';try{dt=new Date(a.ts).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){dt=a.date||'';}
+    var prods=(a.products||[]).map(function(p){return esc(p.name)+(p.weight?' ('+esc(p.weight)+')':'');}).join(', ');
+    var src=a.source==='order'?('из заказа'+(a.orderId?' '+esc(a.orderId):'')):'вручную';
+    var link=a.url?('<a href="'+esc(a.url)+'" target="_blank" rel="noopener" class="btn btn-line btn-sm" style="text-decoration:none;white-space:nowrap;">⬇ PDF</a>'):'<span class="hint">нет файла</span>';
+    return '<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line);">'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div><b>'+esc(a.number||'—')+'</b> · '+esc(a.recipient||'—')+' <span class="hint">· '+src+'</span></div>'+
+        '<div class="hint" style="margin-top:2px;">'+dt+(a.lot?' · LOT '+esc(a.lot):'')+'</div>'+
+        '<div class="hint" style="margin-top:2px;">'+prods+'</div>'+
+      '</div>'+link+'</div>';
+  }).join('');
+}
 function declKey(name,weight){return String(name||'')+'|'+String(weight||'');}
 function declGet(name,weight){
   return declProducts[declKey(name,weight)]||null;
@@ -7127,8 +7198,10 @@ function doOrderDecl(){
         var oo=null;adminOrders.forEach(function(x){if(x.order_id===d.orderId)oo=x;});if(oo)oo.docs=(oo.docs||[]).concat([j.doc]);
         docConfig.counters.deklaracija=(docConfig.counters.deklaracija||0)+1;
         cloudPut('docConfig',docConfig);
+        declEnsurePartner(ctx.recipient);
+        declArchiveAdd(ctx,{url:j.doc.url,view:j.doc.view},'order',d.orderId);
         document.getElementById('declOrderModal').style.display='none';
-        toast('Декларация прикреплена к заказу');renderAdminOrders();
+        toast('Декларация прикреплена к заказу и в архив');renderAdminOrders();
       } else{if(stat)stat.textContent=(j&&j.error==='drive')?'Нет доступа к Drive':'Не удалось прикрепить';}
     }).catch(function(){if(go)go.disabled=false;if(stat)stat.textContent='Ошибка соединения';});
   });
@@ -7145,6 +7218,7 @@ function declCloudReload(cb){
     if(j&&j.ok)cloudState='on';
     var dp=(j&&j.ok&&j.data&&j.data.declProducts&&typeof j.data.declProducts==='object')?j.data.declProducts:null;
     if(dp)declProducts=dp;
+    if(j&&j.ok&&j.data&&Array.isArray(j.data.declArchive))declArchive=j.data.declArchive;
     var n=dp?Object.keys(dp).filter(function(k){var d=dp[k];return d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length)||(d.nutr&&Object.keys(d.nutr).length));}).length:0;
     if(st){
       if(!(j&&j.ok)){st.textContent='✗ Сервер ответил с ошибкой: '+((j&&j.error)||'нет ok')+' (проверьте мастер-ключ / развёртывание)';st.style.color='#c0392b';}
@@ -7156,7 +7230,7 @@ function declCloudReload(cb){
 }
 function initDeclTab(){
   renderDeclPick();
-  declCloudReload(function(){renderDeclRef();fillLabelProducts();});
+  declCloudReload(function(){renderDeclRef();fillLabelProducts();renderDeclArchive();});
   initLabelUi();
   var di=document.getElementById('declDate');if(di&&!di.value)di.valueAsDate=new Date();
   var lo=document.getElementById('declLot');if(lo&&!lo.value)lo.value=declLotFromDate(di?di.value:'');
@@ -7186,11 +7260,29 @@ function initDeclTab(){
     }).catch(function(e){sv.disabled=false;sv.textContent='Сохранить справочник';setSync('err','Не сохранилось');toast('НЕ сохранилось: '+(e&&e.message||'ошибка соединения'));});});}
   var rl=document.getElementById('declReload');
   if(rl&&!rl._b){rl._b=1;rl.addEventListener('click',function(){declCloudReload(function(){renderDeclRef();});});}
-  var pr=document.getElementById('declPrint');
-  if(pr&&!pr._b){pr._b=1;pr.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}declPrint(c);});}
+  var ar=document.getElementById('declArchReload');
+  if(ar&&!ar._b){ar._b=1;ar.addEventListener('click',function(){
+    if(!GAS_URL){toast('Облако не настроено');return;}
+    fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({master:MASTER,pull:true})})
+      .then(function(r){return r.json();}).then(function(j){if(j&&j.ok&&j.data&&Array.isArray(j.data.declArchive))declArchive=j.data.declArchive;renderDeclArchive();}).catch(function(){toast('Ошибка обновления');});});}
   var pf=document.getElementById('declPdf');
-  if(pf&&!pf._b){pf._b=1;pf.addEventListener('click',function(){var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}toast('Готовлю PDF…');
-    declRenderPdf(c,false,function(){declBumpCounter();var n=document.getElementById('declNum');if(n)n.value=declNextNum();});});}
+  if(pf&&!pf._b){pf._b=1;pf.addEventListener('click',function(){
+    var c=declManualCtx();if(!c.products.length){toast('Отметьте хотя бы один продукт');return;}
+    toast('Готовлю PDF…');pf.disabled=true;
+    declRenderPdf(c,true,function(b64){
+      pf.disabled=false;
+      if(!b64){toast('Не удалось сформировать PDF');return;}
+      declDownloadB64(b64,declFileName(c));
+      declEnsurePartner(c.recipient);
+      declDriveUpload(declFileName(c),b64,function(drive){
+        declArchiveAdd(c,drive,'manual','');
+        declBumpCounter();
+        var n=document.getElementById('declNum');if(n)n.value=declNextNum();
+        renderDeclArchive();
+        toast(drive?'Декларация скачана и сохранена в архив':'Декларация скачана (в архив без PDF — нет облака)');
+      });
+    });
+  });}
 }
 (function(){var t=document.querySelector('.tab[data-tab="declar"]');if(t)t.addEventListener('click',initDeclTab);})();
 
