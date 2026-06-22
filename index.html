@@ -6064,20 +6064,52 @@ function genCode(){var s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',o='';for(var i=0;i<6
 function partnerDetailsHtml(p){
   var pr=profilesAdmin[p.id]||{};
   var addrs=pointsAdmin.filter(function(x){return x.partner_id===p.id&&x.active!==false;});
-  var rows=[];
-  function r(label,val){if(val)rows.push('<div style="display:flex;gap:10px;padding:2px 0;font-size:13.5px;"><span style="color:var(--muted);min-width:150px;">'+label+'</span><span style="font-weight:600;">'+esc(val)+'</span></div>');}
-  r('Компания',pr.company);
-  r('Контактное лицо',pr.contact);
-  r('Телефон',pr.phone||p.phone);
-  r('PIB',pr.pib);
-  r('Matični broj',pr.maticni);
-  r('Номер счёта',pr.account);
-  var h=rows.length?rows.join(''):'<div class="hint">Партнёр ещё не заполнил «Мои данные» в своём кабинете.</div>';
-  h+='<div style="font-weight:700;font-size:12.5px;color:var(--blue-d);margin-top:10px;text-transform:uppercase;letter-spacing:.04em;">Адреса ('+addrs.length+')</div>';
-  if(addrs.length)addrs.forEach(function(a){h+='<div style="font-size:13.5px;padding:2px 0;">📍 '+esc(a.name?a.name+' — ':'')+esc(a.address)+'</div>';});
+  function fld(label,key,val,ph){return '<div class="field" style="margin:0;flex:1;min-width:150px;"><label class="lbl">'+label+'</label><input class="inp pf-'+key+'" value="'+esc(val||'')+'" placeholder="'+esc(ph||'')+'"></div>';}
+  var h='<div class="lbl" style="margin-bottom:6px;">Реквизиты партнёра (заполняются вами или партнёром)</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
+      fld('Компания / название','company',pr.company||p.name)+
+      fld('Контактное лицо','contact',pr.contact,'имя')+
+      fld('Телефон','phone',pr.phone||p.phone,'+381…')+
+    '</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">'+
+      fld('PIB','pib',pr.pib)+
+      fld('Matični broj','maticni',pr.maticni)+
+      fld('Номер счёта','account',pr.account)+
+    '</div>'+
+    '<div class="actions" style="margin-top:10px;align-items:center;gap:10px;">'+
+      '<button class="btn btn-primary btn-sm pf-save">💾 Сохранить данные</button>'+
+      (pr.updated?'<span class="hint">Обновлено: '+esc((function(){try{return new Date(pr.updated).toLocaleString('ru-RU');}catch(e){return '';}})())+'</span>':'')+
+    '</div>';
+  h+='<div class="lbl" style="margin:16px 0 6px;">Адреса доставки ('+addrs.length+')</div>';
+  if(addrs.length)addrs.forEach(function(a){
+    h+='<div style="display:flex;align-items:center;gap:8px;font-size:13.5px;padding:3px 0;">📍 <span style="flex:1;">'+esc(a.name?a.name+' — ':'')+esc(a.address)+'</span>'+
+      '<button class="btn btn-line btn-sm pa-del" data-aid="'+esc(a.id)+'">Удалить</button></div>';
+  });
   else h+='<div class="hint">Адресов нет.</div>';
-  if(pr.updated){var u='';try{u=new Date(pr.updated).toLocaleString('ru-RU');}catch(e){}h+='<div class="hint" style="margin-top:8px;">Обновлено партнёром: '+esc(u)+'</div>';}
+  h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:flex-end;">'+
+    '<div class="field" style="margin:0;min-width:120px;"><label class="lbl">Название точки</label><input class="inp pa-name" placeholder="напр. Центр"></div>'+
+    '<div class="field" style="margin:0;flex:1;min-width:180px;"><label class="lbl">Адрес</label><input class="inp pa-addr" placeholder="ул. …"></div>'+
+    '<button class="btn btn-line btn-sm pa-add">+ Адрес</button>'+
+    '</div>';
   return h;
+}
+function savePartnerProfile(pid,row){
+  var g=function(k){var el=row.querySelector('.pf-'+k);return el?el.value.trim():'';};
+  profilesAdmin[pid]={company:g('company'),contact:g('contact'),phone:g('phone'),pib:g('pib'),maticni:g('maticni'),account:g('account'),updated:new Date().toISOString()};
+  cloudPut('profiles',profilesAdmin);
+  toast('Данные партнёра сохранены');renderPartners();
+}
+function addPartnerAddr(pid,row){
+  var nm=row.querySelector('.pa-name'),ad=row.querySelector('.pa-addr');
+  var addr=ad?ad.value.trim():'';if(!addr){toast('Введите адрес');return;}
+  pointsAdmin.push({id:'pt'+Date.now()+Math.floor(Math.random()*1000),partner_id:pid,name:nm?nm.value.trim():'',address:addr,active:true});
+  cloudPut('points',pointsAdmin);
+  toast('Адрес добавлен');renderPartners();
+}
+function delPartnerAddr(pid,aid){
+  pointsAdmin=pointsAdmin.filter(function(x){return x.id!==aid;});
+  cloudPut('points',pointsAdmin);
+  toast('Адрес удалён');renderPartners();
 }
 function renderPartners(){
   var w=document.getElementById('partnersWrap');if(!w)return;
@@ -6107,6 +6139,11 @@ function renderPartners(){
     row.querySelector('.p-cfg').addEventListener('click',function(){openPcfg(p.id,p.name);});
     row.querySelector('.p-info').addEventListener('click',function(){openPartnerId=(openPartnerId===p.id?'':p.id);renderPartners();});
     row.querySelector('.p-del').addEventListener('click',function(){if(confirm('Удалить партнёра «'+p.name+'»? Код перестанет работать.')){partners=partners.filter(function(x){return x.id!==p.id;});savePartners();renderPartners();}});
+    if(openPartnerId===p.id){
+      var sb=row.querySelector('.pf-save');if(sb)sb.addEventListener('click',function(){savePartnerProfile(p.id,row);});
+      var ab=row.querySelector('.pa-add');if(ab)ab.addEventListener('click',function(){addPartnerAddr(p.id,row);});
+      row.querySelectorAll('.pa-del').forEach(function(b){b.addEventListener('click',function(){delPartnerAddr(p.id,this.dataset.aid);});});
+    }
   });
   if(typeof fillAnnounce==='function')fillAnnounce();
 }
@@ -6114,9 +6151,10 @@ document.getElementById('addPartner').addEventListener('click',function(){
   var name=prompt('Название компании / партнёра:');if(name===null)return;name=name.trim();if(!name){toast('Введите название');return;}
   var phone=prompt('Телефон / контакт (необязательно):','')||'';
   var code=genCode();
-  partners.push({id:uid(),name:name,phone:phone.trim(),code:code,active:true,created:Date.now()});
+  var np={id:uid(),name:name,phone:phone.trim(),code:code,active:true,created:Date.now()};
+  partners.push(np);openPartnerId=np.id;
   savePartners();renderPartners();
-  alert('Партнёр добавлен.\n\nКод доступа: '+code+'\n\nПередайте этот код партнёру — он вводит его на странице заказа. Код можно скопировать кнопкой в списке.');
+  alert('Партнёр добавлен.\n\nКод доступа: '+code+'\n\nЗаполните реквизиты в раскрывшемся блоке «Данные», затем передайте код партнёру.');
 });
 (function(){var ou=document.getElementById('orderUrl');if(ou){try{ou.value=localStorage.getItem('bv_b2b_order_url')||'';}catch(e){}
   ou.addEventListener('input',function(){try{localStorage.setItem('bv_b2b_order_url',this.value);}catch(e){}});}})();
