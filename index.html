@@ -5087,7 +5087,8 @@ function itemCard(it){
   var g3=document.createElement('div');g3.className='grid3';
   g3.innerHTML='<div><label class="lbl">Название</label><input class="inp f-name" value="'+esc(it.name)+'"></div>'+
     '<div><label class="lbl">Граммовка</label><input class="inp f-weight" value="'+esc(it.weight||'')+'" placeholder="650 г"></div>'+
-    '<div><label class="lbl">Розница, дин.</label><input class="inp f-retail" type="number" min="0" step="1" value="'+(it.retail||0)+'"></div>';
+    '<div><label class="lbl">Розница, дин.</label><input class="inp f-retail" type="number" min="0" step="1" value="'+(it.retail||0)+'"></div>'+
+    '<div><label class="lbl">Шифра / Артикул</label><input class="inp f-sifra" value="'+esc(it.sifra||'')+'" placeholder="напр. 1001"></div>';
   body.appendChild(g3);
   var cat=document.createElement('div');cat.className='grid3';
   var cats=catList();
@@ -5179,6 +5180,7 @@ function itemCard(it){
   body.querySelector('.f-name').addEventListener('input',function(){it.name=this.value;saveCat();updateHead();});
   body.querySelector('.f-weight').addEventListener('input',function(){it.weight=this.value;saveCat();updateHead();});
   body.querySelector('.f-retail').addEventListener('input',function(){it.retail=Math.max(0,Number(this.value)||0);saveCat();updateHead();renderTiers();});
+  var fsi=body.querySelector('.f-sifra');if(fsi)fsi.addEventListener('input',function(){it.sifra=this.value.trim();saveCat();});
   body.querySelector('.f-cat').addEventListener('change',function(){
     if(this.value==='__new__'){var nn=prompt('Название нового раздела:','');if(nn!=null&&nn.trim())it.cat=nn.trim();saveCat();renderCatalog();return;}
     it.cat=this.value;saveCat();renderCatalog();});
@@ -5612,7 +5614,7 @@ function cloudSetPayment(orderId,paid,dueDate){
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,setPayment:true,order_id:orderId,paid:!!paid,dueDate:dueDate||''})}).then(function(r){return r.json();});
 }
-var ORD_DOC={predracun:'Предсчёт (predračun)',otpremnica:'Отпремница',deklaracija:'Декларация',invoice:'Счёт',other:'Документ'};
+var ORD_DOC={predracun:'Предсчёт (predračun)',faktura:'Фактура (faktura)',otpremnica:'Отпремница',deklaracija:'Декларация',invoice:'Счёт',other:'Документ'};
 function cloudOrderDoc(orderId,type,title,url){
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,orderDoc:true,order_id:orderId,docType:type,docTitle:title,docUrl:url})}).then(function(r){return r.json();});
@@ -5650,7 +5652,7 @@ function renderOrdersFilter(){
   f.querySelectorAll('[data-st]').forEach(function(b){b.addEventListener('click',function(){ordersFilterSt=this.dataset.st;renderAdminOrders();});});
 }
 /* ===== Генератор документов: предрачун / отпремница ===== */
-var DOC_KIND={predracun:{ru:'Предрачун',sr:'PREDRAČUN'},otpremnica:{ru:'Отпремница',sr:'OTPREMNICA'},deklaracija:{ru:'Декларация',sr:'DEKLARACIJA'}};
+var DOC_KIND={predracun:{ru:'Предрачун',sr:'PREDRAČUN'},faktura:{ru:'Фактура',sr:'FAKTURA'},otpremnica:{ru:'Отпремница',sr:'OTPREMNICA'},deklaracija:{ru:'Декларация',sr:'DEKLARACIJA'}};
 var dgState=null;
 function fmtRs(n,dec){dec=(dec==null?2:dec);var s=(Number(n)||0).toFixed(dec);var p=s.split('.');p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,'.');return p[0]+(p[1]?(','+p[1]):'');}
 function dgMatchCatalog(name,weight){var f=null;catalog.forEach(function(it){if(it.name===name&&(it.weight||'')===(weight||''))f=it;});if(!f)catalog.forEach(function(it){if(it.name===name)f=it;});return f;}
@@ -5664,7 +5666,7 @@ function openDocGen(orderId,kind){
   var savedParty=(docConfig.parties&&docConfig.parties[o.partner_id])||{};
   var buyer={
     name:savedParty.name||prof.company||o.partner||'',
-    address:savedParty.address||'',
+    address:savedParty.address||o.address||'',
     city:savedParty.city||'',
     pib:savedParty.pib||prof.pib||'',
     mb:savedParty.mb||prof.maticni||''
@@ -5674,15 +5676,19 @@ function openDocGen(orderId,kind){
     var price=cat?cat.retail:(it.qty?Math.round((it.sum||0)/it.qty):0);
     var pdv=(cat&&cat.pdv!=null)?cat.pdv:10;
     var popust=0;if(cat&&it.qty){var full=cat.retail*it.qty;var net=(it.sum!=null?it.sum:full);if(full>0)popust=Math.round((1-net/full)*100);}
-    return {sifra:(cat&&cat.code)||'',naziv:it.name+(it.weight?' '+it.weight:''),qty:Number(it.qty)||0,price:price,pdv:pdv,popust:popust<0?0:popust};
+    return {sifra:(cat&&(cat.sifra||cat.code))||'',naziv:it.name+(it.weight?' '+it.weight:''),qty:Number(it.qty)||0,price:price,pdv:pdv,popust:popust<0?0:popust};
   });
+  // доставка из заказа: o.total минус сумма позиций
+  var grossItems=(o.items||[]).reduce(function(sm,x){return sm+(Number(x.sum)||0);},0);
+  var deliv=Math.max(0,Math.round(((Number(o.total)||0)-grossItems)*100)/100);
+  if(deliv>0)items.push({sifra:'',naziv:'Dostava',qty:1,price:deliv,pdv:20,popust:0});
   var cnt=(docConfig.counters&&docConfig.counters[kind])||0;
   var yr=new Date().getFullYear();
   dgState={kind:kind,orderId:orderId,partnerId:o.partner_id,
     seller:{name:s.name,address:s.address,city:s.city,mb:s.mb,pib:s.pib,tr:s.tr},
     buyer:buyer,items:items,
     number:yr+'-'+(cnt+1),
-    dateRacuna:dgToday(),datePromet:dgToday(),
+    dateRacuna:dgToday(),datePromet:(normDate(o.date)||dgToday()),
     dospece:(o.dueDate||''),poziv:(yr+''+(cnt+1))};
   document.getElementById('docGenTitle').textContent=(DOC_KIND[kind].ru)+' — '+orderId;
   dgRenderForm();
@@ -5690,24 +5696,37 @@ function openDocGen(orderId,kind){
 }
 function dgRenderForm(){
   var d=dgState,b=d.buyer,s=d.seller;
-  var isPre=d.kind==='predracun';
+  var isPay=(d.kind==='predracun'||d.kind==='faktura');
   function inp(f,v,w,t){return '<input class="inp" data-dg="'+f+'" value="'+dgEsc(v)+'"'+(t?' type="'+t+'"':'')+' style="width:'+(w||'100%')+';font-size:13px;padding:6px 9px;">';}
+  function fld(lbl,f,v,t){return '<div><label class="lbl" style="margin-bottom:3px;display:block;">'+lbl+'</label>'+inp(f,v,'100%',t)+'</div>';}
   var h='';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">';
-  h+='<div><div class="lbl" style="margin-bottom:6px;">Продавец</div>'+
-     '<div style="display:flex;flex-direction:column;gap:6px;">'+inp('s_name',s.name)+inp('s_address',s.address)+inp('s_city',s.city)+
-     '<div style="display:flex;gap:6px;">'+inp('s_mb',s.mb,'33%')+inp('s_pib',s.pib,'33%')+inp('s_tr',s.tr,'34%')+'</div></div>'+
-     '<div class="hint" style="margin-top:3px;">MB · PIB · Текущий счёт</div></div>';
-  h+='<div><div class="lbl" style="margin-bottom:6px;">Покупатель</div>'+
-     '<div style="display:flex;flex-direction:column;gap:6px;">'+inp('b_name',b.name)+inp('b_address',b.address)+inp('b_city',b.city)+
-     '<div style="display:flex;gap:6px;">'+inp('b_pib',b.pib,'50%')+inp('b_mb',b.mb,'50%')+'</div></div>'+
-     '<div class="hint" style="margin-top:3px;">PIB · Matični broj</div></div>';
+  h+='<div><div class="lbl" style="margin-bottom:8px;font-weight:700;">Продавец</div>'+
+     '<div style="display:flex;flex-direction:column;gap:8px;">'+
+     fld('Название компании','s_name',s.name)+
+     fld('Адрес','s_address',s.address)+
+     fld('Город / индекс','s_city',s.city)+
+     '<div style="display:flex;gap:6px;">'+
+       '<div style="flex:1;"><label class="lbl" style="margin-bottom:3px;display:block;">Matični broj</label>'+inp('s_mb',s.mb)+'</div>'+
+       '<div style="flex:1;"><label class="lbl" style="margin-bottom:3px;display:block;">PIB</label>'+inp('s_pib',s.pib)+'</div>'+
+       '<div style="flex:1;"><label class="lbl" style="margin-bottom:3px;display:block;">Текущий счёт</label>'+inp('s_tr',s.tr)+'</div>'+
+     '</div></div></div>';
+  h+='<div><div class="lbl" style="margin-bottom:8px;font-weight:700;">Покупатель</div>'+
+     '<div style="display:flex;flex-direction:column;gap:8px;">'+
+     fld('Название компании','b_name',b.name)+
+     fld('Адрес','b_address',b.address)+
+     fld('Город / индекс','b_city',b.city)+
+     '<div style="display:flex;gap:6px;">'+
+       '<div style="flex:1;"><label class="lbl" style="margin-bottom:3px;display:block;">PIB</label>'+inp('b_pib',b.pib)+'</div>'+
+       '<div style="flex:1;"><label class="lbl" style="margin-bottom:3px;display:block;">Matični broj</label>'+inp('b_mb',b.mb)+'</div>'+
+     '</div></div>'+
+     '<div class="hint" style="margin-top:5px;">Подтягиваются из данных партнёра, если заполнены.</div></div>';
   h+='</div>';
   h+='<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;align-items:flex-end;">'+
      '<div><div class="lbl" style="margin-bottom:4px;">Номер</div>'+inp('number',d.number,'120px')+'</div>'+
      '<div><div class="lbl" style="margin-bottom:4px;">Дата документа</div>'+inp('dateRacuna',d.dateRacuna,'150px','date')+'</div>'+
      '<div><div class="lbl" style="margin-bottom:4px;">Дата промета</div>'+inp('datePromet',d.datePromet,'150px','date')+'</div>'+
-     (isPre?'<div><div class="lbl" style="margin-bottom:4px;">Срок оплаты</div>'+inp('dospece',d.dospece,'150px','date')+'</div>'+
+     (isPay?'<div><div class="lbl" style="margin-bottom:4px;">Срок оплаты</div>'+inp('dospece',d.dospece,'150px','date')+'</div>'+
             '<div><div class="lbl" style="margin-bottom:4px;">Poziv na broj</div>'+inp('poziv',d.poziv,'120px')+'</div>':'')+
      '</div>';
   // позиции
@@ -5782,7 +5801,7 @@ function dgRecalc(){
   var zp=document.getElementById('dg-zap');if(zp)zp.textContent=fmtRs(t.zap)+' RSD';
 }
 function dgBuildHTML(){
-  var d=dgState,s=d.seller,b=d.buyer,t=dgComputeTotals(),isPre=d.kind==='predracun';
+  var d=dgState,s=d.seller,b=d.buyer,t=dgComputeTotals(),isPay=(d.kind==='predracun'||d.kind==='faktura');
   var title=DOC_KIND[d.kind].sr;
   var rows='';
   d.items.forEach(function(r){
@@ -5797,29 +5816,28 @@ function dgBuildHTML(){
       '<td class="r">'+fmtRs(r._vred)+'</td></tr>';
   });
   var pdvLines='';Object.keys(t.byRate).map(Number).sort(function(a,b){return a-b;}).forEach(function(rt){pdvLines+='<div class="trow"><span>PDV '+rt+'% na osnovicu</span><span>'+fmtRs(t.byRate[rt])+' RSD</span></div>';});
-  var pay=isPre
+  var pay=isPay
     ?('<div class="note">Plaćanje na tekući račun <b>'+dgEsc(s.tr)+'</b>'+(d.poziv?', poziv na broj <b>'+dgEsc(d.poziv)+'</b>':'')+'.<br>Redovnim plaćanjem održavate dobru reputaciju i pomažete u stvaranju zdravih uslova za razvoj privrede u Srbiji.<br>Zahvaljujemo Vam se na poverenju i radujemo se daljoj saradnji!</div>'+
       '<div class="sign"><div>POTPIS:</div><div class="line"></div></div>')
     :('<div class="sign two"><div><div>Izdao / POTPIS:</div><div class="line"></div></div><div><div>Primio / POTPIS:</div><div class="line"></div></div></div>');
   return '<div class="doc">'+
-    '<div class="dhead"><div class="seller"><b>'+dgEsc(s.name)+'</b><br>'+dgEsc(s.address)+'<br>'+dgEsc(s.city)+
-      '<br>MB: '+dgEsc(s.mb)+' · PIB: '+dgEsc(s.pib)+'<br>TR: '+dgEsc(s.tr)+'</div>'+
+    '<div class="dhead"><div class="seller"><img class="dlogo" src="'+BV_LOGO_PNG+'" alt=""><div><b>'+dgEsc(s.name)+'</b><br>'+dgEsc(s.address)+'<br>'+dgEsc(s.city)+
+      '<br>MB: '+dgEsc(s.mb)+' · PIB: '+dgEsc(s.pib)+'<br>TR: '+dgEsc(s.tr)+'</div></div>'+
       '<div class="dtitle">'+title+'<div class="dno">Br: '+dgEsc(d.number)+'</div></div></div>'+
     '<div class="buyer"><div class="lbl2">Kupac</div><b>'+dgEsc(b.name)+'</b><br>'+(b.address?dgEsc(b.address)+'<br>':'')+(b.city?dgEsc(b.city)+'<br>':'')+
       'PIB: '+dgEsc(b.pib)+' · MB: '+dgEsc(b.mb)+'</div>'+
-    '<div class="meta"><span>Datum: <b>'+dgFmtDate(d.dateRacuna)+'</b></span><span>Datum prometa: <b>'+dgFmtDate(d.datePromet)+'</b></span>'+(isPre?'<span>Dospeće: <b>'+dgFmtDate(d.dospece)+'</b></span>':'')+'</div>'+
+    '<div class="meta"><span>Datum: <b>'+dgFmtDate(d.dateRacuna)+'</b></span><span>Datum prometa: <b>'+dgFmtDate(d.datePromet)+'</b></span>'+(isPay?'<span>Dospeće: <b>'+dgFmtDate(d.dospece)+'</b></span>':'')+'</div>'+
     '<table class="items"><tr><th>Vrsta robe / usluga</th><th class="r">Količina</th><th class="r">Cena bez PDV</th><th class="r">PDV</th><th class="r">Cena sa PDV</th><th class="r">Popust</th><th class="r">Vrednost</th></tr>'+rows+'</table>'+
     '<div class="totals"><div class="trow"><span>Ukupno bez PDV (popust uračunat)</span><span>'+fmtRs(t.bez)+' RSD</span></div>'+
       '<div class="trow muted"><span>Popust ukupno</span><span>−'+fmtRs(t.pop)+' RSD</span></div>'+pdvLines+
       '<div class="trow grand"><span>Za plaćanje</span><span>'+fmtRs(t.zap)+' RSD</span></div></div>'+
     pay+
-    '<div class="foot">Dokument je informativnog karaktera i nije fiskalni račun. Fiskalni račun se izdaje preko sistema e-Faktura.</div>'+
     '</div>';
 }
 function dgPdfCss(){return '<style>'+
   '*{box-sizing:border-box;} .doc{font-family:"Wix Madefor Text","Helvetica Neue",Arial,sans-serif;color:#1D1D1B;padding:34px 36px;width:760px;background:#fff;font-size:13px;line-height:1.5;}'+
   '.dhead{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #47A2DA;padding-bottom:12px;}'+
-  '.seller{font-size:12px;line-height:1.55;max-width:60%;} .dtitle{text-align:right;font-size:24px;font-weight:800;letter-spacing:.04em;color:#1D1D1B;} .dno{font-size:13px;font-weight:600;color:#47A2DA;margin-top:4px;}'+
+  '.seller{font-size:12px;line-height:1.55;max-width:60%;display:flex;gap:12px;align-items:flex-start;} .dlogo{width:52px;height:52px;object-fit:contain;flex-shrink:0;} .dtitle{text-align:right;font-size:24px;font-weight:800;letter-spacing:.04em;color:#1D1D1B;} .dno{font-size:13px;font-weight:600;color:#47A2DA;margin-top:4px;}'+
   '.buyer{margin-top:14px;font-size:12.5px;line-height:1.55;} .lbl2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#9a9789;margin-bottom:2px;}'+
   '.meta{display:flex;gap:22px;flex-wrap:wrap;margin:12px 0 6px;font-size:12px;color:#444;}'+
   'table.items{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px;} table.items th{background:#47A2DA;color:#fff;font-weight:600;padding:7px 8px;text-align:left;} table.items td{padding:6px 8px;border-bottom:1px solid #e6e3d6;} .items .r{text-align:right;white-space:nowrap;}'+
@@ -5973,7 +5991,7 @@ function renderAdminOrders(){
       h+='<div style="margin-top:10px;"><button class="btn btn-line btn-sm o-edit">✏️ Редактировать позиции</button></div>';
       h+='<div style="border-top:1px solid var(--line);margin-top:12px;padding-top:11px;">'+
          '<div class="lbl" style="margin-bottom:6px;">Документы заказа</div>'+
-         '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px;"><button class="btn btn-line btn-sm dg-make" data-kind="predracun">📄 Предрачун</button><button class="btn btn-line btn-sm dg-make" data-kind="otpremnica">📄 Отпремница</button><button class="btn btn-line btn-sm decl-make">📄 Декларация</button></div>';
+         '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px;"><button class="btn btn-line btn-sm dg-make" data-kind="predracun">📄 Предрачун</button><button class="btn btn-line btn-sm dg-make" data-kind="faktura">📄 Фактура</button><button class="btn btn-line btn-sm dg-make" data-kind="otpremnica">📄 Отпремница</button><button class="btn btn-line btn-sm decl-make">📄 Декларация</button></div>';
       if((o.docs||[]).length){
         o.docs.forEach(function(dc){var dt2='';try{dt2=new Date(dc.ts).toLocaleDateString('ru-RU');}catch(e){}
           h+='<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">'+
