@@ -4142,6 +4142,14 @@
   <section class="panel" id="panel-orders">
     <div class="card">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+        <div class="cat-title" style="margin-top:0;">Сводка производства на день</div>
+        <input type="date" class="inp" id="prodDate" style="width:auto;margin-left:auto;">
+      </div>
+      <p class="hint" style="margin-bottom:14px;">Сколько всего нужно испечь на выбранную дату доставки и кто что заказал. По умолчанию — сегодня. Из «Календаря» можно кликнуть день — откроется сводка на него.</p>
+      <div id="prodSummary"><div class="empty">Нажмите «Обновить» в заказах ниже, чтобы загрузить данные.</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
         <div class="cat-title" style="margin-top:0;">Заказы партнёров</div>
         <button class="btn btn-line btn-sm" id="ordersRefresh" style="margin-left:auto;">Обновить</button>
       </div>
@@ -4194,6 +4202,14 @@
         <button class="btn btn-primary" id="calSave">Сохранить и уведомить партнёров</button>
         <span class="st" id="calStatus"></span>
       </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
+        <div class="cat-title" style="margin-top:0;">Сводка производства на день</div>
+        <input type="date" class="inp" id="prodDateCal" style="width:auto;margin-left:auto;">
+      </div>
+      <p class="hint" style="margin-bottom:14px;">Что и сколько печь на выбранную дату доставки, с разбивкой по заведениям.</p>
+      <div id="prodSummaryCal"><div class="empty">Выберите дату.</div></div>
     </div>
   </section>
 
@@ -4628,7 +4644,7 @@ document.querySelectorAll('.tab').forEach(function(tab){
     if(tab.dataset.tab==='price')renderCatalog();
     else if(tab.dataset.tab==='partners')renderPartners();
     else if(tab.dataset.tab==='care'){renderCareAdmin();fillCareDocPartners();}
-    else if(tab.dataset.tab==='calendar'){renderCalendar();initCalSave();}
+    else if(tab.dataset.tab==='calendar'){renderCalendar();initCalSave();initCalProdSummary();}
     else if(tab.dataset.tab==='subs'){loadAdminSubs();var sr=document.getElementById('subsReload');if(sr&&!sr._b){sr._b=1;sr.addEventListener('click',loadAdminSubs);}}
   });
 });
@@ -5298,6 +5314,13 @@ function renderCalList(){
 function initCalSave(){var b=document.getElementById('calSave');if(b&&!b._b){b._b=1;b.addEventListener('click',function(){
   saveHolidays();var st=document.getElementById('calStatus');if(st){st.textContent='\u2713 сохранено, партнёры увидят баннер';st.style.color='#2c7a4b';}
   toast('Календарь сохранён');});}}
+function initCalProdSummary(){
+  var pd=document.getElementById('prodDateCal');if(!pd)return;
+  if(!pd.value){var t=new Date();t.setDate(t.getDate()+1);pd.value=t.toISOString().slice(0,10);} // по умолчанию завтра
+  if(!pd._b){pd._b=1;pd.addEventListener('change',function(){renderProdSummary(pd.value,'prodSummaryCal');});}
+  var go=function(){renderProdSummary(pd.value,'prodSummaryCal');};
+  if(!adminOrders.length)loadAdminOrders().then(go).catch(go);else go();
+}
 /* ---- админ: регулярные поставки ---- */
 var SUBS_ADMIN=[];
 var SUB_DOW=['','Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -5845,6 +5868,44 @@ function dgAttach(){
 }
 function dgSaveParty(){docConfig.parties=docConfig.parties||{};docConfig.parties[dgState.partnerId]=dgState.buyer;cloudPut('docConfig',docConfig);toast('Реквизиты партнёра сохранены');}
 function dgSaveSeller(){docConfig.seller=dgState.seller;cloudPut('docConfig',docConfig);toast('Реквизиты компании сохранены');}
+function buildProductionSummary(date){
+  var orders=adminOrders.filter(function(o){return (o.date||'')===date&&(o.status||'submitted')!=='cancelled';});
+  var totalsMap={},byPartner=[];
+  orders.forEach(function(o){
+    var pname=o.partner||'—',pEntry=null;
+    byPartner.forEach(function(x){if(x.partner===pname)pEntry=x;});
+    if(!pEntry){pEntry={partner:pname,items:[]};byPartner.push(pEntry);}
+    (o.items||[]).forEach(function(it){
+      var q=Number(it.qty)||0;if(!q)return;
+      var key=(it.name||'')+'|'+(it.weight||'');
+      if(!totalsMap[key])totalsMap[key]={name:it.name||'',weight:it.weight||'',qty:0};
+      totalsMap[key].qty+=q;
+      var pi=null;pEntry.items.forEach(function(x){if(x.name===(it.name||'')&&x.weight===(it.weight||''))pi=x;});
+      if(!pi){pi={name:it.name||'',weight:it.weight||'',qty:0};pEntry.items.push(pi);}
+      pi.qty+=q;
+    });
+  });
+  var totals=Object.keys(totalsMap).map(function(k){return totalsMap[k];}).sort(function(a,b){return b.qty-a.qty;});
+  return {date:date,orderCount:orders.length,totals:totals,byPartner:byPartner};
+}
+function renderProdSummary(date,cid){
+  cid=cid||'prodSummary';
+  var w=document.getElementById(cid);if(!w)return;
+  date=date||new Date().toISOString().slice(0,10);
+  if(!adminOrders.length){w.innerHTML='<div class="empty">Нажмите «Обновить» в заказах, чтобы загрузить данные.</div>';return;}
+  var s=buildProductionSummary(date);
+  if(!s.orderCount){w.innerHTML='<div class="empty">На '+esc(declDateFmt(date))+' заказов нет.</div>';return;}
+  var totalsH=s.totals.map(function(t){return '<div style="display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);"><span>'+esc(t.name)+(t.weight?' · '+esc(t.weight):'')+'</span><b style="white-space:nowrap;">'+t.qty+' шт</b></div>';}).join('');
+  var partnersH=s.byPartner.map(function(p){
+    var its=p.items.map(function(it){return esc(it.name)+(it.weight?' ('+esc(it.weight)+')':'')+' — '+it.qty+' шт';}).join(', ');
+    return '<div style="padding:7px 0;border-bottom:1px solid var(--line);"><b>'+esc(p.partner)+'</b><div class="hint" style="margin-top:3px;line-height:1.6;">'+its+'</div></div>';
+  }).join('');
+  w.innerHTML='<div style="font-weight:700;margin-bottom:12px;">📅 '+esc(declDateFmt(date))+' · '+s.orderCount+' заказ(ов)</div>'+
+    '<div style="display:flex;gap:28px;flex-wrap:wrap;">'+
+      '<div style="flex:1;min-width:240px;"><div class="lbl" style="margin-bottom:6px;">Всего испечь</div>'+totalsH+'</div>'+
+      '<div style="flex:1;min-width:240px;"><div class="lbl" style="margin-bottom:6px;">По заведениям</div>'+partnersH+'</div>'+
+    '</div>';
+}
 function renderAdminOrders(){
   renderOrdersFilter();
   var w=document.getElementById('ordersView');if(!w)return;
@@ -6031,11 +6092,16 @@ function renderAdminOrders(){
 }
 function loadAdminOrders(){
   var w=document.getElementById('ordersView');if(w)w.innerHTML='<div class="empty">Загрузка…</div>';
-  cloudOrders().then(function(list){adminOrders=list;renderAdminOrders();})
+  return cloudOrders().then(function(list){adminOrders=list;renderAdminOrders();
+    var pd=document.getElementById('prodDate');renderProdSummary(pd&&pd.value);})
     .catch(function(e){if(w)w.innerHTML='<div class="empty">'+(e==='auth'?'Неверный мастер-ключ.':'Не удалось загрузить. Проверьте подключение к облаку.')+'</div>';});
 }
 document.getElementById('ordersRefresh').addEventListener('click',loadAdminOrders);
-document.querySelector('.tab[data-tab="orders"]').addEventListener('click',function(){if(!adminOrders.length)loadAdminOrders();});
+(function(){var pd=document.getElementById('prodDate');if(pd){if(!pd.value)pd.value=new Date().toISOString().slice(0,10);pd.addEventListener('change',function(){renderProdSummary(pd.value);});}})();
+document.querySelector('.tab[data-tab="orders"]').addEventListener('click',function(){
+  var pd=document.getElementById('prodDate');if(pd&&!pd.value)pd.value=new Date().toISOString().slice(0,10);
+  if(!adminOrders.length)loadAdminOrders();else renderProdSummary();
+});
 
 /* ---------- журнал действий ---------- */
 function loadAudit(){
