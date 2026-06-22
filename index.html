@@ -5868,8 +5868,17 @@ function dgAttach(){
 }
 function dgSaveParty(){docConfig.parties=docConfig.parties||{};docConfig.parties[dgState.partnerId]=dgState.buyer;cloudPut('docConfig',docConfig);toast('Реквизиты партнёра сохранены');}
 function dgSaveSeller(){docConfig.seller=dgState.seller;cloudPut('docConfig',docConfig);toast('Реквизиты компании сохранены');}
+function normDate(s){
+  s=String(s||'').trim();if(!s)return '';
+  var m=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+  m=s.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+  if(m)return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+  return s;
+}
 function buildProductionSummary(date){
-  var orders=adminOrders.filter(function(o){return (o.date||'')===date&&(o.status||'submitted')!=='cancelled';});
+  var target=normDate(date);
+  var orders=adminOrders.filter(function(o){return normDate(o.date)===target&&(o.status||'submitted')!=='cancelled';});
   var totalsMap={},byPartner=[];
   orders.forEach(function(o){
     var pname=o.partner||'—',pEntry=null;
