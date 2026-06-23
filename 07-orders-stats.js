@@ -217,8 +217,9 @@ function statsExportPdf(){
     var pw=210,ph=297,iw=pw,ih=canvas.height*iw/canvas.width;
     if(ih<=ph){pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,iw,ih);pdf.save('BreadVenture_статистика_'+(new Date().toISOString().slice(0,10))+'.pdf');fin();return;}
     var ctx=canvas.getContext('2d'), W=canvas.width;
-    var pagePx=Math.floor(ph*canvas.width/pw);     // высота страницы в пикселях canvas
-    // ищем «белую» горизонтальную линию рядом с границей страницы, чтобы не резать блок
+    var margin=10;                                  // поле сверху/снизу, мм
+    var contentMm=ph-margin*2;                      // полезная высота страницы
+    var pagePx=Math.floor(contentMm*canvas.width/pw);
     function isWhiteRow(y){
       if(y<0||y>=canvas.height)return false;
       var d;try{d=ctx.getImageData(0,y,W,1).data;}catch(e){return false;}
@@ -226,9 +227,9 @@ function statsExportPdf(){
       return true;
     }
     function findCut(target){
-      var minY=target-Math.floor(pagePx*0.28); // не отступаем больше ~28% страницы
+      var minY=target-Math.floor(pagePx*0.28);
       for(var y=target;y>minY;y--){if(isWhiteRow(y))return y;}
-      return target; // безопасной линии нет — режем ровно
+      return target;
     }
     var y=0;
     while(y<canvas.height){
@@ -238,7 +239,7 @@ function statsExportPdf(){
       var cv=document.createElement('canvas');cv.width=W;cv.height=slice;
       cv.getContext('2d').drawImage(canvas,0,y,W,slice,0,0,W,slice);
       if(y>0)pdf.addPage();
-      pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,iw,slice*iw/W);
+      pdf.addImage(cv.toDataURL('image/png'),'PNG',0,margin,iw,slice*iw/W);
       y=end;
     }
     pdf.save('BreadVenture_статистика_'+(new Date().toISOString().slice(0,10))+'.pdf');fin();
