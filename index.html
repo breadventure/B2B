@@ -4042,7 +4042,15 @@
           <button class="seg-b active" data-range="365">12 месяцев</button>
           <button class="seg-b" data-range="all">Всё время</button>
         </div>
+        <button class="btn btn-line btn-sm" id="statsPeriodBtn">Период…</button>
         <button class="btn btn-line btn-sm" id="statsRefresh">Обновить</button>
+        <button class="btn btn-sm" id="statsPdf">📄 Скачать PDF</button>
+      </div>
+      <div id="statsPeriodRow" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;background:var(--cream);padding:10px 12px;border-radius:10px;">
+        <span class="hint">Произвольный период:</span>
+        <label class="hint">с <input type="date" class="inp" id="statsFromInp" style="width:auto;display:inline-block;"></label>
+        <label class="hint">по <input type="date" class="inp" id="statsToInp" style="width:auto;display:inline-block;"></label>
+        <button class="btn btn-sm" id="statsApply">Применить</button>
       </div>
       <p class="hint" style="margin-bottom:16px;">Считается по заказам партнёров и их оплате. «Выданный счёт» — это заказ (кроме отменённых). Срок оплаты берётся из поля оплаты заказа.</p>
       <div id="statsView"><div class="empty">Нажмите «Обновить», чтобы загрузить данные.</div></div>

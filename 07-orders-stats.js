@@ -45,16 +45,29 @@ function renderProdSummary(date,cid){
     '</div>';
 }
 var statsRange='365';
-function buildStats(range){
-  var cutoff=null;
-  if(range!=='all'){cutoff=new Date();cutoff.setDate(cutoff.getDate()-Number(range));cutoff.setHours(0,0,0,0);}
+function buildStats(opts){
+  opts=opts||{};
+  var cutoff=null, until=null;
+  if(opts.from)cutoff=new Date(opts.from+'T00:00:00');
+  if(opts.to)until=new Date(opts.to+'T23:59:59');
+  if(!opts.from && opts.range && opts.range!=='all'){
+    cutoff=new Date();cutoff.setDate(cutoff.getDate()-Number(opts.range));cutoff.setHours(0,0,0,0);
+  }
   var today=new Date();today.setHours(0,0,0,0);
+  // карта название позиции → категория (из каталога)
+  var catMap={};
+  if(typeof catalog!=='undefined'&&catalog&&catalog.length){
+    catalog.forEach(function(p){if(p&&p.name)catMap[String(p.name).trim().toLowerCase()]=p.cat||'Без категории';});
+  }
   var orders=adminOrders.filter(function(o){
     if((o.status||'submitted')==='cancelled')return false;
-    if(cutoff){var d=new Date(o.created||(normDate(o.date)+'T00:00:00'));if(isNaN(d.getTime())||d<cutoff)return false;}
+    var d=new Date(o.created||(normDate(o.date)+'T00:00:00'));
+    if(cutoff&&(isNaN(d.getTime())||d<cutoff))return false;
+    if(until&&(isNaN(d.getTime())||d>until))return false;
     return true;
   });
   var total=0,paidCnt=0,nedospeliCnt=0,dospeliCnt=0,totalSum=0,byPartner={},debtByPartner={};
+  var byProduct={},byCategory={},byMonth={};
   orders.forEach(function(o){
     var sum=Number(o.total)||0;totalSum+=sum;total++;
     var pname=o.partner||'—';byPartner[pname]=(byPartner[pname]||0)+sum;
@@ -65,10 +78,27 @@ function buildStats(range){
       if(overdue)dospeliCnt++;else nedospeliCnt++;
       debtByPartner[pname]=(debtByPartner[pname]||0)+sum;
     }
+    (o.items||[]).forEach(function(it){
+      var nm=String(it.name||'—').trim();
+      var q=Number(it.qty)||0, s=Number(it.sum)||0;
+      if(!byProduct[nm])byProduct[nm]={qty:0,sum:0};
+      byProduct[nm].qty+=q; byProduct[nm].sum+=s;
+      var cat=catMap[nm.toLowerCase()]||'Без категории';
+      if(!byCategory[cat])byCategory[cat]={qty:0,sum:0};
+      byCategory[cat].qty+=q; byCategory[cat].sum+=s;
+    });
+    var dm=new Date(o.created||(normDate(o.date)+'T00:00:00'));
+    if(!isNaN(dm.getTime())){var mk=dm.getFullYear()+'-'+('0'+(dm.getMonth()+1)).slice(-2);byMonth[mk]=(byMonth[mk]||0)+sum;}
   });
   var best=Object.keys(byPartner).map(function(k){return {name:k,sum:byPartner[k]};}).sort(function(a,b){return b.sum-a.sum;}).slice(0,5);
   var debt=Object.keys(debtByPartner).map(function(k){return {name:k,sum:debtByPartner[k]};}).filter(function(x){return x.sum>0;}).sort(function(a,b){return b.sum-a.sum;}).slice(0,5);
-  return {total:total,paidCnt:paidCnt,nedospeliCnt:nedospeliCnt,dospeliCnt:dospeliCnt,totalSum:totalSum,best:best,debt:debt};
+  var prodArr=Object.keys(byProduct).map(function(k){return {name:k,qty:byProduct[k].qty,sum:byProduct[k].sum};});
+  var prodByQty=prodArr.slice().sort(function(a,b){return b.qty-a.qty;}).slice(0,8);
+  var prodBySum=prodArr.slice().sort(function(a,b){return b.sum-a.sum;}).slice(0,8);
+  var cats=Object.keys(byCategory).map(function(k){return {name:k,qty:byCategory[k].qty,sum:byCategory[k].sum};}).sort(function(a,b){return b.sum-a.sum;});
+  var months=Object.keys(byMonth).sort().map(function(k){return {m:k,sum:byMonth[k]};});
+  return {total:total,paidCnt:paidCnt,nedospeliCnt:nedospeliCnt,dospeliCnt:dospeliCnt,totalSum:totalSum,
+          best:best,debt:debt,prodByQty:prodByQty,prodBySum:prodBySum,cats:cats,months:months};
 }
 function statsDonut(segs,size){
   var totalV=segs.reduce(function(s,x){return s+x.value;},0)||1;
@@ -90,10 +120,43 @@ function statsBar(rank,name,sum,max,color){
     '</div>'+
     '<span style="width:110px;text-align:right;font-size:12.5px;font-weight:700;white-space:nowrap;">'+fmt(sum)+' дин.</span></div>';
 }
+var statsFrom='', statsTo='';
+function statsCurrentOpts(){
+  if(statsRange==='custom' && statsFrom && statsTo)return {from:statsFrom,to:statsTo};
+  return {range:statsRange};
+}
+var RU_MON=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+function statsMonthLabel(mk){var p=mk.split('-');return RU_MON[(Number(p[1])||1)-1]+' '+p[0].slice(2);}
+function statsMonthsChart(months){
+  if(!months.length)return '<div class="hint">Нет данных за период.</div>';
+  var max=Math.max.apply(null,months.map(function(m){return m.sum;}))||1;
+  var n=months.length, bw=46, gap=20, padL=8, padB=34, padT=22, H=220;
+  var W=padL*2+n*bw+(n-1)*gap, plotH=H-padB-padT;
+  var bars='';
+  months.forEach(function(m,i){
+    var x=padL+i*(bw+gap);
+    var h=Math.max(2,Math.round(m.sum/max*plotH));
+    var y=padT+plotH-h;
+    bars+='<rect x="'+x+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="5" fill="#47A2DA" opacity="0.55"/>';
+    bars+='<text x="'+(x+bw/2)+'" y="'+(y-5)+'" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1D1D1B">'+Math.round(m.sum/1000)+'к</text>';
+    bars+='<text x="'+(x+bw/2)+'" y="'+(H-12)+'" text-anchor="middle" font-size="10.5" fill="#777">'+statsMonthLabel(m.m)+'</text>';
+  });
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="max-width:100%;">'+bars+'</svg>';
+}
+function statsProdRow(rank,name,metricTxt,subTxt,frac,color){
+  var w=Math.max(3,Math.round(frac*100));
+  return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;"><span style="width:16px;color:var(--muted);font-size:13px;">'+rank+'</span>'+
+    '<div style="flex:1;background:var(--cream);border-radius:7px;overflow:hidden;height:28px;position:relative;border:1px solid var(--line);">'+
+      '<div style="width:'+w+'%;height:100%;background:'+color+';opacity:.5;"></div>'+
+      '<span style="position:absolute;left:9px;top:0;line-height:28px;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 14px);">'+esc(name)+'</span>'+
+    '</div>'+
+    '<span style="width:80px;text-align:right;font-size:12.5px;font-weight:700;">'+metricTxt+'</span>'+
+    '<span style="width:96px;text-align:right;font-size:11.5px;color:var(--muted);">'+subTxt+'</span></div>';
+}
 function renderStats(){
   var w=document.getElementById('statsView');if(!w)return;
   if(!adminOrders.length){w.innerHTML='<div class="empty">Нажмите «Обновить», чтобы загрузить данные.</div>';return;}
-  var s=buildStats(statsRange);
+  var s=buildStats(statsCurrentOpts());
   if(!s.total){w.innerHTML='<div class="empty">За выбранный период счетов нет.</div>';return;}
   var segs=[{value:s.paidCnt,color:'#3a8a3a'},{value:s.nedospeliCnt,color:'#5bb6a8'},{value:s.dospeliCnt,color:'#d9706e'}];
   var leg=function(color,n,label){return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;"><span style="width:11px;height:11px;border-radius:50%;background:'+color+';flex:none;"></span><b style="font-size:18px;">'+n+'</b> <span class="hint">'+label+'</span></div>';};
@@ -110,19 +173,77 @@ function renderStats(){
   var bestBlock=s.best.length?s.best.map(function(x,i){return statsBar(i+1,x.name,x.sum,maxBest,'#47A2DA');}).join(''):'<div class="hint">Нет данных.</div>';
   var maxDebt=s.debt.length?s.debt[0].sum:0;
   var debtBlock=s.debt.length?s.debt.map(function(x,i){return statsBar(i+1,x.name,x.sum,maxDebt,'#d9706e');}).join(''):'<div class="hint">Должников нет — всё оплачено 🎉</div>';
+  // позиции
+  var maxQ=s.prodByQty.length?s.prodByQty[0].qty:0;
+  var qtyBlock=s.prodByQty.length?s.prodByQty.map(function(x,i){return statsProdRow(i+1,x.name,x.qty+' шт',fmt(x.sum)+' дин.',maxQ?x.qty/maxQ:0,'#47A2DA');}).join(''):'<div class="hint">Нет данных.</div>';
+  var maxS=s.prodBySum.length?s.prodBySum[0].sum:0;
+  var sumBlock=s.prodBySum.length?s.prodBySum.map(function(x,i){return statsProdRow(i+1,x.name,fmt(x.sum)+' дин.',x.qty+' шт',maxS?x.sum/maxS:0,'#3a8a3a');}).join(''):'<div class="hint">Нет данных.</div>';
+  // категории
+  var maxC=s.cats.length?s.cats[0].sum:0;
+  var catBlock=s.cats.length?s.cats.map(function(x,i){return statsProdRow(i+1,x.name,fmt(x.sum)+' дин.',x.qty+' шт',maxC?x.sum/maxC:0,'#c79a4b');}).join(''):'<div class="hint">Нет данных.</div>';
+
   w.innerHTML=donutBlock+
     '<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:26px;">'+
       '<div style="flex:1;min-width:300px;"><div class="cat-title" style="margin-top:0;">Лучшие покупатели</div>'+bestBlock+'</div>'+
       '<div style="flex:1;min-width:300px;"><div class="cat-title" style="margin-top:0;">Крупнейшие должники</div>'+debtBlock+'</div>'+
-    '</div>';
+    '</div>'+
+    '<div class="cat-title">Заработок по месяцам</div>'+
+    '<div style="overflow-x:auto;padding:4px 0;">'+statsMonthsChart(s.months)+'</div>'+
+    '<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:20px;">'+
+      '<div style="flex:1;min-width:340px;"><div class="cat-title" style="margin-top:0;">Самые продаваемые позиции — по количеству</div>'+qtyBlock+'</div>'+
+      '<div style="flex:1;min-width:340px;"><div class="cat-title" style="margin-top:0;">Самые прибыльные позиции — по заработку</div>'+sumBlock+'</div>'+
+    '</div>'+
+    '<div class="cat-title">Категории товаров — по заработку</div>'+catBlock;
+}
+function statsExportPdf(){
+  var view=document.getElementById('statsView');if(!view||!view.innerHTML.trim())return;
+  if(!window.html2canvas||!window.jspdf){alert('Библиотеки PDF не загрузились, обновите страницу.');return;}
+  var opts=statsCurrentOpts();
+  var periodTxt=opts.from?(opts.from+' — '+opts.to):(statsRange==='30'?'за 30 дней':statsRange==='365'?'за 12 месяцев':'за всё время');
+  var logo=(typeof BV_DOC_LOGO_PNG!=='undefined')?BV_DOC_LOGO_PNG:'';
+  var holder=document.createElement('div');
+  holder.style.cssText='position:fixed;left:-9999px;top:0;width:760px;background:#fff;padding:28px;color:#1D1D1B;';
+  holder.innerHTML='<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px;">'+
+    (logo?'<img src="'+logo+'" style="width:78px;height:auto;">':'')+
+    '<div><div style="font-size:22px;font-weight:700;">Отчёт по статистике</div>'+
+    '<div style="color:#777;font-size:13px;">BreadVenture · период: '+periodTxt+' · сформирован '+new Date().toLocaleDateString('ru-RU')+'</div></div></div>'+
+    '<hr style="border:none;border-top:2px solid #47A2DA;margin:10px 0 18px;">'+view.innerHTML;
+  document.body.appendChild(holder);
+  var fin=function(){try{document.body.removeChild(holder);}catch(e){}};
+  (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){
+    return window.html2canvas(holder,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:820});
+  }).then(function(canvas){
+    var jsPDF=window.jspdf.jsPDF,pdf=new jsPDF('p','mm','a4');
+    var pw=210,ph=297,iw=pw,ih=canvas.height*iw/canvas.width;
+    if(ih<=ph){pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,iw,ih);}
+    else{var pxPer=canvas.width/pw,pagePx=ph*pxPer,y=0;
+      while(y<canvas.height){var slice=Math.min(pagePx,canvas.height-y);var cv=document.createElement('canvas');cv.width=canvas.width;cv.height=slice;cv.getContext('2d').drawImage(canvas,0,y,canvas.width,slice,0,0,canvas.width,slice);
+        if(y>0)pdf.addPage();pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,iw,slice/pxPer);y+=slice;}}
+    pdf.save('BreadVenture_статистика_'+(new Date().toISOString().slice(0,10))+'.pdf');fin();
+  }).catch(function(e){fin();alert('Ошибка PDF: '+e);});
 }
 function initStatsTab(){
   var seg=document.getElementById('statsRange');
   if(seg&&!seg._b){seg._b=1;seg.querySelectorAll('.seg-b').forEach(function(b){b.addEventListener('click',function(){
     seg.querySelectorAll('.seg-b').forEach(function(x){x.classList.remove('active');});this.classList.add('active');
-    statsRange=this.dataset.range;renderStats();});});}
+    statsRange=this.dataset.range;
+    var pr=document.getElementById('statsPeriodRow');if(pr)pr.style.display='none';
+    renderStats();});});}
+  var ap=document.getElementById('statsApply');
+  if(ap&&!ap._b){ap._b=1;ap.addEventListener('click',function(){
+    var f=document.getElementById('statsFromInp'),t=document.getElementById('statsToInp');
+    if(!f.value||!t.value){alert('Укажите обе даты периода.');return;}
+    if(f.value>t.value){alert('Дата «от» позже даты «до».');return;}
+    statsFrom=f.value;statsTo=t.value;statsRange='custom';
+    if(seg)seg.querySelectorAll('.seg-b').forEach(function(x){x.classList.remove('active');});
+    renderStats();});}
+  var pb=document.getElementById('statsPeriodBtn');
+  if(pb&&!pb._b){pb._b=1;pb.addEventListener('click',function(){
+    var pr=document.getElementById('statsPeriodRow');if(pr)pr.style.display=pr.style.display==='none'?'flex':'none';});}
   var rf=document.getElementById('statsRefresh');
   if(rf&&!rf._b){rf._b=1;rf.addEventListener('click',function(){loadAdminOrders().then(renderStats);});}
+  var pd=document.getElementById('statsPdf');
+  if(pd&&!pd._b){pd._b=1;pd.addEventListener('click',statsExportPdf);}
   if(!adminOrders.length)loadAdminOrders().then(renderStats);else renderStats();
 }
 function renderAdminOrders(){
