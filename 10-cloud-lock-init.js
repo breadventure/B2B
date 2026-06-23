@@ -6,7 +6,7 @@
  * ============================================================ */
 
 /* ---------- облако: настройка и синхронизация ---------- */
-(function(){var lb=document.getElementById('logoutBtn');if(lb)lb.addEventListener('click',bvLogout);})();
+(function(){var lb=document.getElementById('logoutBtn');if(lb)lb.addEventListener('click',bvLogout);var pb=document.getElementById('pinBtn');if(pb)pb.addEventListener('click',bvChangePin);})();
 document.getElementById('syncBtn').addEventListener('click',function(){
   var msg='Облачная синхронизация (Google Таблица).\n\n';
   if(GAS_URL)msg+='Сейчас подключено к:\n'+GAS_URL+'\n\nВставьте другой URL, чтобы сменить, или оставьте поле пустым и нажмите ОК — появятся действия.';
@@ -45,6 +45,26 @@ document.getElementById('syncBtn').addEventListener('click',function(){
 });
 
 /* ---------- экран-замок (PIN) ---------- */
+function bvChangePin(){
+  var stored='';try{stored=localStorage.getItem('bv_b2b_pin')||'';}catch(e){}
+  function askNew(){
+    var n=prompt('Новый PIN (4–8 цифр):');if(n===null)return;n=n.trim();
+    if(!/^\d{4,8}$/.test(n)){alert('PIN должен быть от 4 до 8 цифр.');return;}
+    var n2=prompt('Повторите новый PIN:');if(n2===null)return;
+    if(n2.trim()!==n){alert('PIN не совпадают, попробуйте ещё раз.');return;}
+    bvHash(n).then(function(h){
+      try{localStorage.setItem('bv_b2b_pin',h);localStorage.removeItem('bv_b2b_pin_trust');}catch(e){}
+      alert('PIN изменён. В следующий раз входите с новым PIN.');
+    });
+  }
+  if(stored){
+    var cur=prompt('Введите текущий PIN:');if(cur===null)return;
+    bvHash(cur.trim()).then(function(h){
+      if(h!==stored){alert('Текущий PIN неверный.');return;}
+      askNew();
+    });
+  } else askNew();
+}
 function bvLogout(){
   if(!confirm('Выйти и заблокировать панель? Для входа снова понадобится PIN.'))return;
   try{localStorage.removeItem('bv_b2b_pin_trust');}catch(e){}
