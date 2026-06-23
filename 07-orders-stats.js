@@ -211,14 +211,36 @@ function statsExportPdf(){
   document.body.appendChild(holder);
   var fin=function(){try{document.body.removeChild(holder);}catch(e){}};
   (document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(function(){
-    return window.html2canvas(holder,{scale:2,backgroundColor:'#ffffff',useCORS:true,windowWidth:820});
+    return window.html2canvas(holder,{scale:3,backgroundColor:'#ffffff',useCORS:true,windowWidth:820});
   }).then(function(canvas){
     var jsPDF=window.jspdf.jsPDF,pdf=new jsPDF('p','mm','a4');
     var pw=210,ph=297,iw=pw,ih=canvas.height*iw/canvas.width;
-    if(ih<=ph){pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,iw,ih);}
-    else{var pxPer=canvas.width/pw,pagePx=ph*pxPer,y=0;
-      while(y<canvas.height){var slice=Math.min(pagePx,canvas.height-y);var cv=document.createElement('canvas');cv.width=canvas.width;cv.height=slice;cv.getContext('2d').drawImage(canvas,0,y,canvas.width,slice,0,0,canvas.width,slice);
-        if(y>0)pdf.addPage();pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,iw,slice/pxPer);y+=slice;}}
+    if(ih<=ph){pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,iw,ih);pdf.save('BreadVenture_статистика_'+(new Date().toISOString().slice(0,10))+'.pdf');fin();return;}
+    var ctx=canvas.getContext('2d'), W=canvas.width;
+    var pagePx=Math.floor(ph*canvas.width/pw);     // высота страницы в пикселях canvas
+    // ищем «белую» горизонтальную линию рядом с границей страницы, чтобы не резать блок
+    function isWhiteRow(y){
+      if(y<0||y>=canvas.height)return false;
+      var d;try{d=ctx.getImageData(0,y,W,1).data;}catch(e){return false;}
+      for(var x=0;x<d.length;x+=4){if(d[x]<248||d[x+1]<248||d[x+2]<248)return false;}
+      return true;
+    }
+    function findCut(target){
+      var minY=target-Math.floor(pagePx*0.28); // не отступаем больше ~28% страницы
+      for(var y=target;y>minY;y--){if(isWhiteRow(y))return y;}
+      return target; // безопасной линии нет — режем ровно
+    }
+    var y=0;
+    while(y<canvas.height){
+      var end=Math.min(y+pagePx,canvas.height);
+      if(end<canvas.height)end=findCut(end);
+      var slice=end-y;
+      var cv=document.createElement('canvas');cv.width=W;cv.height=slice;
+      cv.getContext('2d').drawImage(canvas,0,y,W,slice,0,0,W,slice);
+      if(y>0)pdf.addPage();
+      pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,iw,slice*iw/W);
+      y=end;
+    }
     pdf.save('BreadVenture_статистика_'+(new Date().toISOString().slice(0,10))+'.pdf');fin();
   }).catch(function(e){fin();alert('Ошибка PDF: '+e);});
 }

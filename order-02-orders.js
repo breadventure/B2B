@@ -179,6 +179,99 @@ function ordersBannersHtml(){
   });
   return h;
 }
+function buildMyStats(){
+  var today=new Date();today.setHours(0,0,0,0);
+  var os=ORDERS.filter(function(o){return (o.status||'')!=='cancelled';});
+  if(!os.length)return {count:0};
+  var dates=os.map(function(o){return new Date(o.created||o.date);}).filter(function(d){return !isNaN(d.getTime());}).sort(function(a,b){return a-b;});
+  var first=dates[0],last=dates[dates.length-1];
+  var totalSum=0,maxCheck=0,onTime=0,late=0,payDays=[],unpaid=0,overdue=0,debtSum=0,paidCount=0;
+  os.forEach(function(o){
+    var s=Number(o.total)||0;totalSum+=s;if(s>maxCheck)maxCheck=s;
+    if(o.paid){paidCount++;
+      if(o.paidAt&&o.created){var c=new Date(o.created),pa=new Date(o.paidAt);var dd=(pa-c)/86400000;if(dd>=0&&dd<400)payDays.push(dd);}
+      if(o.paidAt&&o.dueDate){var pad=new Date(o.paidAt);pad.setHours(0,0,0,0);var due=new Date(o.dueDate+'T00:00:00');if(pad<=due)onTime++;else late++;}
+    }else{unpaid++;debtSum+=s;if(o.dueDate){var d2=new Date(o.dueDate+'T00:00:00');if(d2<today)overdue++;}}
+  });
+  var avgCheck=Math.round(totalSum/os.length);
+  var span=(last-first)/86400000;
+  var freqDays=os.length>1?Math.round(span/(os.length-1)):null;
+  var avgPay=payDays.length?Math.round(payDays.reduce(function(a,b){return a+b;},0)/payDays.length):null;
+  var dL=new Date(last.getFullYear(),last.getMonth(),last.getDate());
+  var daysSinceLast=Math.round((today-dL)/86400000);
+  return {count:os.length,totalSum:totalSum,avgCheck:avgCheck,maxCheck:maxCheck,paidCount:paidCount,
+    onTime:onTime,late:late,avgPay:avgPay,unpaid:unpaid,overdue:overdue,debtSum:debtSum,
+    first:first,last:last,daysSinceLast:daysSinceLast,freqDays:freqDays};
+}
+function msCard(title,body,accent){
+  return '<div class="form-card" style="margin-bottom:14px;border-left:4px solid '+(accent||'#47A2DA')+';">'+
+    '<div style="font-weight:700;font-size:15px;margin-bottom:8px;">'+title+'</div>'+body+'</div>';
+}
+function msBar(frac,color){
+  var w=Math.max(2,Math.min(100,Math.round(frac*100)));
+  return '<div style="background:#eee;border-radius:8px;height:12px;overflow:hidden;margin:8px 0;"><div style="width:'+w+'%;height:100%;background:'+(color||'#47A2DA')+';"></div></div>';
+}
+function renderMyStats(){
+  var T=function(ru,sr){return LANG==='sr'?sr:ru;};
+  document.getElementById('hTitle').textContent=T('Моя статистика','Moja statistika');
+  document.getElementById('bar').style.display='none';
+  var c=document.getElementById('content');var h=navHtml('mystats');
+  var s=buildMyStats();
+  if(!s.count){h+='<div class="empty">'+T('Здесь появится ваша статистика после первых заказов.','Ovde će se prikazati statistika nakon prvih porudžbina.')+'</div>';c.innerHTML=h;bindNav();return;}
+  var cur=(LANG==='sr'?'din.':'дин.');
+
+  // 1) Платёжная репутация
+  var payAccent='#3a8a3a',payBody='';
+  if(s.overdue>0){
+    payAccent='#d9534f';
+    payBody='<div style="color:#c0392b;font-weight:600;margin-bottom:6px;">'+T('У вас есть просроченный счёт','Imate dospeli neplaćeni račun')+' ('+s.overdue+').</div>'+
+      '<div>'+T('Оплатите как можно скорее — своевременная оплата открывает лучшие условия и приоритет в производстве.','Platite što pre — blagovremeno plaćanje donosi bolje uslove i prioritet u proizvodnji.')+'</div>';
+  } else if(s.unpaid>0){
+    payAccent='#e0a800';
+    payBody='<div style="margin-bottom:6px;">'+T('Неоплаченных счетов: ','Neplaćenih računa: ')+'<b>'+s.unpaid+'</b>'+(s.debtSum?(' · '+fmt(s.debtSum)+' '+cur):'')+'.</div>'+
+      '<div>'+T('Оплатите в срок — и сохраните репутацию надёжного партнёра.','Platite na vreme — i sačuvaćete reputaciju pouzdanog partnera.')+'</div>';
+  } else if(s.paidCount>0){
+    payBody='<div style="font-size:22px;margin-bottom:4px;">⭐ '+T('Надёжный плательщик','Pouzdan platilac')+'</div>'+
+      '<div>'+T('Все счета оплачены','Svi računi su plaćeni')+(s.avgPay!=null?(', '+T('в среднем за ','u proseku za ')+s.avgPay+T(' дн.',' dana')):'')+'. '+T('Так держать — спасибо за дисциплину!','Samo tako nastavite — hvala na disciplini!')+'</div>';
+  } else {
+    payBody='<div>'+T('Оплачивайте счета в срок — это формирует вашу платёжную репутацию.','Plaćajte račune na vreme — to gradi vašu platnu reputaciju.')+'</div>';
+  }
+  if(s.onTime+s.late>0)payBody+='<div class="hint" style="margin-top:6px;">'+T('Вовремя оплачено: ','Na vreme plaćeno: ')+s.onTime+T(' из ',' od ')+(s.onTime+s.late)+'.</div>';
+  h+=msCard('💳 '+T('Платёжная репутация','Platna reputacija'),payBody,payAccent);
+
+  // 2) Средний заказ и бесплатная доставка
+  var frac=s.avgCheck/FREE_FROM;
+  var dBody='<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:4px;">'+
+    '<div><div class="hint">'+T('Средний заказ','Prosečna porudžbina')+'</div><div style="font-size:20px;font-weight:700;">'+fmt(s.avgCheck)+' '+cur+'</div></div>'+
+    '<div><div class="hint">'+T('Самый крупный','Najveća')+'</div><div style="font-size:20px;font-weight:700;">'+fmt(s.maxCheck)+' '+cur+'</div></div>'+
+    '</div>'+msBar(frac, frac>=1?'#3a8a3a':'#47A2DA');
+  if(s.avgCheck>=FREE_FROM){
+    dBody+='<div style="color:#2c7a2c;font-weight:600;">🎉 '+T('Ваши заказы обычно проходят порог бесплатной доставки!','Vaše porudžbine obično prelaze prag besplatne dostave!')+'</div>';
+  } else {
+    var need=FREE_FROM-s.avgCheck;
+    dBody+='<div>'+T('До бесплатной доставки в среднем не хватает ','Do besplatne dostave u proseku nedostaje ')+'<b>'+fmt(need)+' '+cur+'</b>. '+
+      T('Добавьте пару позиций к заказу — и доставка будет бесплатной (от ','Dodajte par stavki — i dostava će biti besplatna (od ')+fmt(FREE_FROM)+T(' дин. без PDV).',' din. bez PDV-a).')+'</div>';
+  }
+  h+=msCard('🚚 '+T('Средний заказ и доставка','Prosečna porudžbina i dostava'),dBody,'#47A2DA');
+
+  // 3) Ритм заказов
+  var rBody='<div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:6px;">'+
+    '<div><div class="hint">'+T('Всего заказов','Ukupno porudžbina')+'</div><div style="font-size:20px;font-weight:700;">'+s.count+'</div></div>'+
+    (s.freqDays!=null?'<div><div class="hint">'+T('Ваш ритм','Vaš ritam')+'</div><div style="font-size:20px;font-weight:700;">'+T('раз в ','na ')+s.freqDays+T(' дн.',' dana')+'</div></div>':'')+
+    '<div><div class="hint">'+T('С последнего заказа','Od poslednje')+'</div><div style="font-size:20px;font-weight:700;">'+s.daysSinceLast+T(' дн.',' dana')+'</div></div>'+
+    '</div>';
+  var slow=s.freqDays!=null?(s.daysSinceLast>s.freqDays*1.3+1):(s.daysSinceLast>12);
+  if(slow){
+    rBody+='<div style="color:#b8860b;">'+T('Вы давно не заказывали — пополните запасы, чтобы у гостей всегда была свежая выпечка. ','Odavno niste poručivali — dopunite zalihe, da gosti uvek imaju svež pekarski program. ')+'</div>'+
+      '<button class="btn-primary" id="msOrderNow" style="margin-top:8px;">'+T('Сделать заказ','Napravi porudžbinu')+'</button>';
+  } else {
+    rBody+='<div style="color:#2c7a2c;">'+T('Отличный ритм! Регулярные заказы — это всегда свежий ассортимент для ваших гостей.','Odličan ritam! Redovne porudžbine znače uvek svež asortiman za vaše goste.')+'</div>';
+  }
+  h+=msCard('📅 '+T('Ритм заказов','Ritam porudžbina'),rBody,'#c79a4b');
+
+  c.innerHTML=h;bindNav();
+  var ob=document.getElementById('msOrderNow');if(ob)ob.addEventListener('click',function(){setView('new');});
+}
 function renderOrders(){
   document.getElementById('hTitle').textContent=L('myorders');
   document.getElementById('bar').style.display='none';

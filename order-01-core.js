@@ -120,11 +120,12 @@ function setView(v){VIEW=v;
   document.getElementById('logout').addEventListener('click',logout);
   var _tag=document.querySelector('.tag');if(_tag)_tag.textContent=(LANG==='sr'?'BreadVenture · zanatska pekara · Beograd':'BreadVenture · ремесленная пекарня · Белград');
   document.querySelectorAll('.lng').forEach(function(a){a.addEventListener('click',function(){LANG=this.dataset.l;try{localStorage.setItem('bv_partner_lang',LANG);}catch(e){}setView(VIEW);});});
-  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='subs')renderSubs();else if(v==='points')renderMe();else if(v==='me')renderMe();else if(v==='care')renderStorage();else if(v==='docs')renderDocs();else if(v==='price')renderPriceList();else renderTerms();
+  if(v==='new')renderNew();else if(v==='orders')renderOrders();else if(v==='mystats')renderMyStats();else if(v==='subs')renderSubs();else if(v==='points')renderMe();else if(v==='me')renderMe();else if(v==='care')renderStorage();else if(v==='docs')renderDocs();else if(v==='price')renderPriceList();else renderTerms();
 }
 function navHtml(active){
   return '<nav><button data-v="new" class="'+(active==='new'?'on':'')+'">'+L('neworder')+'</button>'+
          '<button data-v="orders" class="'+(active==='orders'?'on':'')+'">'+L('myorders')+(ORDERS.length?' ('+ORDERS.length+')':'')+(unreadOrders().length?' <span class="ndot"></span>':'')+'</button>'+
+         '<button data-v="mystats" class="'+(active==='mystats'?'on':'')+'">'+(LANG==='sr'?'Moja statistika':'Моя статистика')+'</button>'+
          '<button data-v="subs" class="'+(active==='subs'?'on':'')+'">'+(LANG==='sr'?'Redovne porudžbine':'Регулярные заказы')+(pendingCount()?' •'+pendingCount():'')+'</button>'+
          '<button data-v="me" class="'+(active==='me'?'on':'')+'">'+(LANG==='sr'?'Moji podaci i adrese':'Мои данные и адреса')+'</button>'+
          '<button data-v="care" class="'+(active==='care'?'on':'')+'">'+(LANG==='sr'?'Čuvanje i serviranje':'Хранение и подача')+'</button>'+

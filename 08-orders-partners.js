@@ -37,6 +37,87 @@ var _auditBtn=document.getElementById('auditRefresh');if(_auditBtn)_auditBtn.add
 
 /* ---------- партнёры (доступ) ---------- */
 function genCode(){var s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',o='';for(var i=0;i<6;i++)o+=s[Math.floor(Math.random()*s.length)];return o;}
+function buildPartnerStats(pid){
+  var today=new Date();today.setHours(0,0,0,0);
+  var os=adminOrders.filter(function(o){return o.partner_id===pid && (o.status||'')!=='cancelled';});
+  if(!os.length)return {count:0};
+  var dates=os.map(function(o){return new Date(o.created||(normDate(o.date)+'T00:00:00'));}).filter(function(d){return !isNaN(d.getTime());}).sort(function(a,b){return a-b;});
+  var first=dates[0],last=dates[dates.length-1];
+  var totalSum=0,paidSum=0,debtSum=0,payDays=[];
+  os.forEach(function(o){
+    var s=Number(o.total)||0;totalSum+=s;
+    if(o.paid){paidSum+=s;
+      if(o.paidAt&&o.created){var c=new Date(o.created),pa=new Date(o.paidAt);var dd=(pa-c)/86400000;if(dd>=0&&dd<400)payDays.push(dd);}
+    } else debtSum+=s;
+  });
+  var d0=first?new Date(first.getFullYear(),first.getMonth(),first.getDate()):null;
+  var dL=last?new Date(last.getFullYear(),last.getMonth(),last.getDate()):null;
+  var daysCoop=d0?Math.round((today-d0)/86400000):0;
+  var daysSinceLast=dL?Math.round((today-dL)/86400000):0;
+  var span=(last-first)/86400000;
+  var freqDays=os.length>1?Math.round(span/(os.length-1)):null;
+  var avgPay=payDays.length?Math.round(payDays.reduce(function(a,b){return a+b;},0)/payDays.length):null;
+  return {count:os.length,totalSum:totalSum,paidSum:paidSum,debtSum:debtSum,first:first,last:last,
+          daysCoop:daysCoop,daysSinceLast:daysSinceLast,freqDays:freqDays,avgPay:avgPay,silent:daysSinceLast>12};
+}
+function statFmtDate(d){try{return d.toLocaleDateString('ru-RU');}catch(e){return '—';}}
+function partnerStatBlock(p){
+  if(!adminOrders.length)return '<div class="hint" style="margin-top:14px;">Статистика подгрузится после загрузки заказов.</div>';
+  var st=buildPartnerStats(p.id);
+  if(!st.count)return '<div class="lbl" style="margin:16px 0 6px;">Статистика</div><div class="hint">Заказов пока нет.</div>';
+  var row=function(l,v,warn){return '<div style="display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px solid var(--line);font-size:13.5px;"><span class="hint">'+l+'</span><span style="font-weight:600;'+(warn?'color:#c0392b;':'')+'">'+v+'</span></div>';};
+  return '<div class="lbl" style="margin:16px 0 6px;">Статистика</div>'+
+    '<div style="display:flex;gap:24px;flex-wrap:wrap;">'+
+      '<div style="flex:1;min-width:230px;">'+
+        row('Заказов',st.count)+
+        row('Сумма заказов',fmt(st.totalSum)+' дин.')+
+        row('Оплачено',fmt(st.paidSum)+' дин.')+
+        row('Долг',fmt(st.debtSum)+' дин.',st.debtSum>0)+
+        row('Скорость оплаты',st.avgPay!=null?('≈ '+st.avgPay+' дн.'):'нет данных')+
+      '</div>'+
+      '<div style="flex:1;min-width:230px;">'+
+        row('Первый заказ',statFmtDate(st.first))+
+        row('Последний заказ',statFmtDate(st.last))+
+        row('Длительность сотрудничества',st.daysCoop+' дн.')+
+        row('Частота заказов',st.freqDays!=null?('≈ раз в '+st.freqDays+' дн.'):'—')+
+        row('С последнего заказа',st.daysSinceLast+' дн.'+(st.silent?' ⚠️':''),st.silent)+
+      '</div>'+
+    '</div>'+
+    (st.silent?'<div style="margin-top:8px;background:#fdecea;border:1px solid #f5c6cb;color:#9c2b22;border-radius:8px;padding:8px 11px;font-size:13px;">⚠️ Не размещал заказов больше 12 дней — стоит связаться.</div>':'');
+}
+function renderPartnersOverview(){
+  var w=document.getElementById('partnersOverview');if(!w)return;
+  if(!adminOrders.length){w.innerHTML='<div class="empty">Нажмите «Обновить», чтобы загрузить заказы.</div>';return;}
+  var rows=partners.map(function(p){var st=buildPartnerStats(p.id);return {p:p,st:st};})
+    .filter(function(x){return x.st.count;})
+    .sort(function(a,b){return b.st.totalSum-a.st.totalSum;});
+  if(!rows.length){w.innerHTML='<div class="empty">Пока нет заказов ни у одного партнёра.</div>';return;}
+  var silent=rows.filter(function(x){return x.st.silent;});
+  var head='<div style="display:flex;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;padding:0 4px 6px;gap:8px;">'+
+    '<span style="flex:1;min-width:120px;">Партнёр</span>'+
+    '<span style="width:60px;text-align:right;">Заказов</span>'+
+    '<span style="width:100px;text-align:right;">Сумма</span>'+
+    '<span style="width:90px;text-align:right;">Долг</span>'+
+    '<span style="width:90px;text-align:right;">Послед.</span>'+
+    '<span style="width:70px;text-align:right;">Молчит</span>'+
+    '<span style="width:80px;text-align:right;">Частота</span>'+
+    '<span style="width:80px;text-align:right;">Оплата</span>'+
+    '</div>';
+  var body=rows.map(function(x){var st=x.st;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:7px 4px;border-top:1px solid var(--line);font-size:13px;'+(st.silent?'background:#fdecea;':'')+'">'+
+      '<span style="flex:1;min-width:120px;font-weight:600;">'+esc(x.p.name)+'</span>'+
+      '<span style="width:60px;text-align:right;">'+st.count+'</span>'+
+      '<span style="width:100px;text-align:right;font-weight:600;">'+fmt(st.totalSum)+'</span>'+
+      '<span style="width:90px;text-align:right;'+(st.debtSum>0?'color:#c0392b;':'color:var(--muted);')+'">'+fmt(st.debtSum)+'</span>'+
+      '<span style="width:90px;text-align:right;color:var(--muted);">'+statFmtDate(st.last)+'</span>'+
+      '<span style="width:70px;text-align:right;'+(st.silent?'color:#c0392b;font-weight:700;':'')+'">'+st.daysSinceLast+' дн.</span>'+
+      '<span style="width:80px;text-align:right;color:var(--muted);">'+(st.freqDays!=null?('/'+st.freqDays+'дн'):'—')+'</span>'+
+      '<span style="width:80px;text-align:right;color:var(--muted);">'+(st.avgPay!=null?(st.avgPay+' дн.'):'—')+'</span>'+
+      '</div>';
+  }).join('');
+  var warn=silent.length?'<div style="margin-bottom:12px;background:#fdecea;border:1px solid #f5c6cb;color:#9c2b22;border-radius:9px;padding:9px 12px;font-size:13px;">⚠️ Давно не заказывали ('+silent.length+'): '+silent.map(function(x){return esc(x.p.name)+' — '+x.st.daysSinceLast+' дн.';}).join('; ')+'</div>':'';
+  w.innerHTML=warn+head+body;
+}
 function partnerDetailsHtml(p){
   var pr=profilesAdmin[p.id]||{};
   var addrs=pointsAdmin.filter(function(x){return x.partner_id===p.id&&x.active!==false;});
@@ -67,6 +148,7 @@ function partnerDetailsHtml(p){
     '<div class="field" style="margin:0;flex:1;min-width:180px;"><label class="lbl">Адрес</label><input class="inp pa-addr" placeholder="ул. …"></div>'+
     '<button class="btn btn-line btn-sm pa-add">+ Адрес</button>'+
     '</div>';
+  h+=partnerStatBlock(p);
   return h;
 }
 function savePartnerProfile(pid,row){
@@ -110,6 +192,9 @@ function delPartnerAddr(pid,aid){
 function renderPartners(){
   var w=document.getElementById('partnersWrap');if(!w)return;
   if(typeof fillDocPartners==='function')fillDocPartners();
+  if(!adminOrders.length && typeof loadAdminOrders==='function' && !renderPartners._loaded){
+    renderPartners._loaded=1;loadAdminOrders().then(function(){renderPartners();renderPartnersOverview();});
+  }
   if(!partners.length){w.innerHTML='<div class="empty">Пока нет партнёров. Добавьте первого — получите код доступа.</div>';return;}
   var h='';
   partners.forEach(function(p){
@@ -142,6 +227,9 @@ function renderPartners(){
     }
   });
   if(typeof fillAnnounce==='function')fillAnnounce();
+  renderPartnersOverview();
+  var ovb=document.getElementById('partnersOvRefresh');
+  if(ovb&&!ovb._b){ovb._b=1;ovb.addEventListener('click',function(){if(typeof loadAdminOrders==='function')loadAdminOrders().then(function(){renderPartners();});});}
 }
 document.getElementById('addPartner').addEventListener('click',function(){
   var name=prompt('Название компании / партнёра:');if(name===null)return;name=name.trim();if(!name){toast('Введите название');return;}
