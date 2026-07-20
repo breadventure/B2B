@@ -238,7 +238,7 @@ function renderKPHtml(kp){
       if(it.sostav)h+='<div class="sostav"><b>'+l.sastav+'</b> '+esc(it.sostav)+'</div>';
       var u=uomLoc(it.uom,kp.lang);
       h+='<div class="kp-pricing">'+
-         '<span class="pp">'+l.base+': <span class="base">'+fmt(it.retail)+' '+l.cur+'</span></span>'+
+         (it.disc>0?'<span class="pp">'+l.base+': <span class="base">'+fmt(it.retail)+' '+l.cur+'</span></span>':'')+
          '<span class="pp offer">'+fmt(it.unit)+' '+l.cur+'/'+esc(u)+(it.disc>0?' (−'+fmt(it.disc)+'%)':'')+'</span>'+
          '<span class="pp">× '+it.qty+' '+esc(u)+' = <b>'+fmt(it.unit*it.qty)+' '+l.cur+'</b></span></div>';
       h+=tiersTableFromData(it,l,kp.lang);
@@ -359,7 +359,7 @@ function buildText(){
   if(kp.partner)o.push(l.forw+' '+kp.partner);o.push('');
   kp.items.forEach(function(it){o.push('• '+it.name+(it.weight?' '+it.weight:''));
     var u=uomLoc(it.uom,kp.lang);
-    o.push('   '+l.base.toLowerCase()+' '+fmt(it.retail)+' '+l.cur+' → '+fmt(it.unit)+' '+l.cur+'/'+u+
+    o.push('   '+(it.disc>0?(l.base.toLowerCase()+' '+fmt(it.retail)+' '+l.cur+' → '):'')+fmt(it.unit)+' '+l.cur+'/'+u+
       (it.disc>0?' (−'+fmt(it.disc)+'%)':'')+' × '+it.qty+' '+u+' = '+fmt(it.unit*it.qty)+' '+l.cur);});
   o.push('');
   o.push(l.baseSum+': '+fmt(c.base)+' '+l.cur);
