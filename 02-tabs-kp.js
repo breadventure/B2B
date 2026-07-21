@@ -225,18 +225,16 @@ function renderKPHtml(kp){
     if(_g.cat&&_g.cat!=='__nocat'){var _cn=(kp.lang==='sr'&&_g.items[0]&&_g.items[0].catSr)?_g.items[0].catSr:_g.cat;h+='<div class="kp-cat">'+esc(_cn)+'</div>';}
     _g.items.forEach(function(it){
     var ph=photoFor(it.name,it.weight);
-    h+='<div class="kp-prod">';
-    if(ph)h+='<img src="'+ph+'" alt="">';
-    h+='<div class="info"><h4>'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</h4>';
+    var u=uomLoc(it.uom,kp.lang);
+    h+='<div class="kp-prod" style="display:block;page-break-inside:avoid;margin-bottom:20px;">';
+    h+='<div class="kp-prod-row" style="display:flex;gap:18px;align-items:flex-start;">';
+    if(ph)h+='<img src="'+ph+'" alt="" style="width:200px;height:auto;flex:none;border-radius:12px;border:1px solid #e6e2d3;">';
+    h+='<div class="info" style="flex:1;min-width:0;"><h4>'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</h4>';
+    if(it.sostav)h+='<div class="sostav"><b>'+l.sastav+'</b> '+esc(it.sostav)+'</div>';
     if(kp.type==='primary'){
-      if(it.sostav)h+='<div class="sostav"><b>'+l.sastav+'</b> '+esc(it.sostav)+'</div>';
       h+='<div class="kp-baseprice">'+l.base+': '+fmt(it.retail)+' '+l.cur+' · PDV '+(it.pdv!=null?it.pdv:10)+'%</div>';
-      h+='<div class="kp-price-grid"><div class="kp-price-left">'+tiersTableFromData(it,l,kp.lang)+'</div>'+
-         '<div class="kp-price-right">'+(it.desc?'<div class="desc">'+esc(it.desc)+'</div>':'')+'</div></div>';
+      h+=tiersTableFromData(it,l,kp.lang);
     }else{
-      if(it.desc)h+='<div class="desc">'+esc(it.desc)+'</div>';
-      if(it.sostav)h+='<div class="sostav"><b>'+l.sastav+'</b> '+esc(it.sostav)+'</div>';
-      var u=uomLoc(it.uom,kp.lang);
       h+='<div class="kp-pricing">'+
          (it.disc>0?'<span class="pp">'+l.base+': <span class="base">'+fmt(it.retail)+' '+l.cur+'</span></span>':'')+
          '<span class="pp offer">'+fmt(it.unit)+' '+l.cur+'/'+esc(u)+(it.disc>0?' (−'+fmt(it.disc)+'%)':'')+'</span>'+
@@ -244,6 +242,8 @@ function renderKPHtml(kp){
       h+=tiersTableFromData(it,l,kp.lang);
     }
     h+='</div></div>';
+    if(it.desc)h+='<div class="desc" style="margin-top:10px;">'+esc(it.desc)+'</div>';
+    h+='</div>';
     });
   });
   if(kp.type==='volume'&&kp.totals){

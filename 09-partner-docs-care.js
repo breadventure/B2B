@@ -204,7 +204,32 @@ function careBlocksHtml(blocks,lang){
   secs.forEach(function(s){var inner='';s.blocks.forEach(function(b){inner+=cell(b);});h+='<div class="cg-card'+(s.footer?' cg-foot':'')+'">'+inner+'</div>';});
   return h;
 }
-function careEnsure(){if(!storageData||!Array.isArray(storageData.blocks))storageData=JSON.parse(JSON.stringify(DEFAULT_STORAGE));storageData.blocks=storageData.blocks||[];}
+var careGroupIdx=0;
+function careEnsure(){
+  if(!storageData||typeof storageData!=='object')storageData={};
+  if(!Array.isArray(storageData.groups)){
+    if(Array.isArray(storageData.blocks)&&storageData.blocks.length){
+      storageData.groups=[{id:uid(),name:{ru:'Общее',sr:'Opšte'},blocks:storageData.blocks}];
+    } else if(DEFAULT_STORAGE&&Array.isArray(DEFAULT_STORAGE.blocks)){
+      storageData.groups=[{id:uid(),name:{ru:'Общее',sr:'Opšte'},blocks:JSON.parse(JSON.stringify(DEFAULT_STORAGE.blocks))}];
+    } else storageData.groups=[{id:uid(),name:{ru:'Общее',sr:'Opšte'},blocks:[]}];
+  }
+  if(!storageData.groups.length)storageData.groups.push({id:uid(),name:{ru:'Общее',sr:'Opšte'},blocks:[]});
+  storageData.groups.forEach(function(g){if(!Array.isArray(g.blocks))g.blocks=[];if(!g.name||typeof g.name!=='object')g.name={ru:'',sr:''};if(!g.id)g.id=uid();});
+  if(careGroupIdx>=storageData.groups.length)careGroupIdx=storageData.groups.length-1;
+  if(careGroupIdx<0)careGroupIdx=0;
+}
+function careCurGroup(){careEnsure();return storageData.groups[careGroupIdx];}
+function careFlatten(){
+  var blocks=[];careEnsure();
+  var multi=storageData.groups.length>1;
+  storageData.groups.forEach(function(g){
+    var nm=(g.name&&((g.name.ru||'').trim()||(g.name.sr||'').trim()));
+    if(multi&&nm)blocks.push({type:'h',t:{ru:(g.name.ru||g.name.sr||''),sr:(g.name.sr||g.name.ru||'')}});
+    (g.blocks||[]).forEach(function(b){blocks.push(b);});
+  });
+  return blocks;
+}
 function careColorPaletteHtml(b){
   var cur=b.color||'yellow',h='<div class="care-colors">';
   Object.keys(CARE_COLORS).forEach(function(k){var c=CARE_COLORS[k];
@@ -249,7 +274,7 @@ function careAddImage(file){
   compressImage(file,function(d){
     var b64=d.indexOf('base64,')>=0?d.substring(d.indexOf('base64,')+7):d;
     driveUpload((file.name||'photo')+'.jpg','image/jpeg',b64).then(function(j){
-      if(j&&j.ok&&j.fileId){careEnsure();storageData.blocks.push({type:'img',fileId:j.fileId,name:file.name||'',cap:{ru:'',sr:''}});renderCareAdmin();toast('Фото добавлено');}
+      if(j&&j.ok&&j.fileId){careEnsure();careCurGroup().blocks.push({type:'img',fileId:j.fileId,name:file.name||'',cap:{ru:'',sr:''}});renderCareAdmin();toast('Фото добавлено');}
       else toast(j&&j.error==='auth'?'Нет доступа к Drive — переразверните Code.gs':'Не удалось загрузить');
     }).catch(function(){toast('Ошибка соединения');});
   },function(){toast('Не удалось обработать фото');});
@@ -260,7 +285,7 @@ function careAddFile(file){
   var rd=new FileReader();
   rd.onload=function(){var b64=String(rd.result||'');var ix=b64.indexOf('base64,');if(ix>=0)b64=b64.substring(ix+7);
     driveUpload(file.name||'file',file.type||'application/octet-stream',b64).then(function(j){
-      if(j&&j.ok&&j.fileId){careEnsure();storageData.blocks.push({type:'file',fileId:j.fileId,name:file.name||'',ttl:{ru:file.name||'Документ',sr:file.name||'Dokument'}});renderCareAdmin();toast('Файл добавлен');}
+      if(j&&j.ok&&j.fileId){careEnsure();careCurGroup().blocks.push({type:'file',fileId:j.fileId,name:file.name||'',ttl:{ru:file.name||'Документ',sr:file.name||'Dokument'}});renderCareAdmin();toast('Файл добавлен');}
       else toast(j&&j.error==='auth'?'Нет доступа к Drive — переразверните Code.gs':'Не удалось загрузить');
     }).catch(function(){toast('Ошибка соединения');});
   };
@@ -272,9 +297,22 @@ function renderCareAdmin(){
   careEnsure();
   var lang=storeLang;
   var ed=document.getElementById('careEditor');if(!ed)return;
+  var cur=careCurGroup();
   var h='';
-  storageData.blocks.forEach(function(b,i){
-    var first=(i===0),last=(i===storageData.blocks.length-1);
+  // ── панель типов изделий ──
+  h+='<div class="care-groups" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">';
+  storageData.groups.forEach(function(g,gi){
+    var nm=(g.name&&(g.name[lang]||g.name.ru||g.name.sr))||('Тип '+(gi+1));
+    h+='<button class="btn btn-sm '+(gi===careGroupIdx?'btn-primary':'btn-line')+' cg-tab" data-g="'+gi+'">'+esc(nm)+'</button>';
+  });
+  h+='<button class="btn btn-line btn-sm cg-add">+ Тип</button></div>';
+  h+='<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--line);">'+
+     '<input class="inp cg-name" value="'+esc((cur.name&&cur.name[lang])||'')+'" placeholder="Название типа ('+(lang==='sr'?'срб':'рус')+') — напр. Булки, Хлеба, Крема" style="max-width:300px;">'+
+     '<button class="btn btn-line btn-sm cg-left" title="переместить тип левее"'+(careGroupIdx===0?' disabled style="opacity:.4;"':'')+'>←</button>'+
+     '<button class="btn btn-line btn-sm cg-right" title="переместить тип правее"'+(careGroupIdx===storageData.groups.length-1?' disabled style="opacity:.4;"':'')+'>→</button>'+
+     '<button class="btn btn-line btn-sm danger cg-delgroup">Удалить тип</button></div>';
+  cur.blocks.forEach(function(b,i){
+    var first=(i===0),last=(i===cur.blocks.length-1);
     h+='<div class="care-block" data-i="'+i+'">';
     h+='<div class="care-bhead"><span class="care-btype">'+careTypeLabel(b.type)+'</span><span style="flex:1;"></span>'+
        '<button class="btn btn-line btn-sm cb-up"'+(first?' disabled style="opacity:.4;"':'')+' title="выше">↑</button>'+
@@ -288,20 +326,80 @@ function renderCareAdmin(){
     if(b.type==='note')h+=careColorPaletteHtml(b);
     h+='</div>';
   });
+  if(!cur.blocks.length)h+='<div class="hint" style="padding:10px 2px;">В этом типе пока нет блоков — добавьте ниже «+ Текст», «+ Таблица» и т.д.</div>';
   ed.innerHTML=h;
+  bindCareGroups();
   bindCareEditor();
   renderCarePreview();
   var up=document.getElementById('careUpdated');
   if(up)up.textContent=(storageData.updated?('Сохранено: '+new Date(storageData.updated).toLocaleString('ru-RU')):'Ещё не сохранено в облако');
+  if(typeof renderCareVisibility==='function')renderCareVisibility();
   careDraftSave();
 }
+function renderCareVisibility(){
+  careEnsure();
+  var sel=document.getElementById('careVisPartner');if(!sel)return;
+  var cur=sel.value;
+  var h='<option value="">— выберите партнёра —</option>';
+  (partners||[]).forEach(function(p){h+='<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>';});
+  sel.innerHTML=h;if(cur)sel.value=cur;
+  sel.onchange=function(){renderCareVisList();};
+  renderCareVisList();
+}
+function renderCareVisList(){
+  var wrap=document.getElementById('careVisList');if(!wrap)return;
+  careEnsure();
+  var sel=document.getElementById('careVisPartner');var pid=sel?sel.value:'';
+  if(!pid){wrap.innerHTML='<div class="hint">Выберите партнёра, чтобы настроить, какие типы он видит.</div>';return;}
+  if(typeof docConfig==='undefined'||!docConfig)return;
+  docConfig.careHidden=docConfig.careHidden||{};
+  var hidden=docConfig.careHidden[pid]||[];
+  var lang=storeLang;
+  var h='<div style="display:flex;flex-direction:column;gap:9px;">';
+  storageData.groups.forEach(function(g){
+    var nm=(g.name&&(g.name[lang]||g.name.ru||g.name.sr))||'Без названия';
+    var vis=hidden.indexOf(g.id)<0;
+    h+='<label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:14px;"><input type="checkbox" class="cv-chk" data-g="'+esc(g.id)+'"'+(vis?' checked':'')+'><span>'+esc(nm)+'</span></label>';
+  });
+  h+='</div><div class="hint" style="margin-top:9px;">Отмечено — партнёр видит тип. Изменения сохраняются сразу.</div>';
+  wrap.innerHTML=h;
+  wrap.querySelectorAll('.cv-chk').forEach(function(chk){
+    chk.addEventListener('change',function(){
+      var gid=this.dataset.g;docConfig.careHidden=docConfig.careHidden||{};
+      var arr=(docConfig.careHidden[pid]||[]).slice();
+      if(this.checked)arr=arr.filter(function(x){return x!==gid;});
+      else if(arr.indexOf(gid)<0)arr.push(gid);
+      docConfig.careHidden[pid]=arr;
+      if(typeof cloudPut==='function')cloudPut('docConfig',docConfig);
+      toast(this.checked?'Тип показан партнёру':'Тип скрыт от партнёра');
+    });
+  });
+}
+function bindCareGroups(){
+  var ed=document.getElementById('careEditor');if(!ed)return;var lang=storeLang;
+  ed.querySelectorAll('.cg-tab').forEach(function(b){b.addEventListener('click',function(){careGroupIdx=Number(this.dataset.g);renderCareAdmin();});});
+  var add=ed.querySelector('.cg-add');if(add)add.addEventListener('click',function(){careEnsure();storageData.groups.push({id:uid(),name:{ru:'Новый тип',sr:'Novi tip'},blocks:[]});careGroupIdx=storageData.groups.length-1;renderCareAdmin();careDraftSave();});
+  var nm=ed.querySelector('.cg-name');if(nm)nm.addEventListener('input',function(){var g=careCurGroup();g.name=g.name||{ru:'',sr:''};g.name[lang]=this.value;careDraftSave();
+    var tab=ed.querySelector('.cg-tab.btn-primary');if(tab)tab.textContent=this.value||('Тип '+(careGroupIdx+1));});
+  var lft=ed.querySelector('.cg-left');if(lft)lft.addEventListener('click',function(){careGroupMove(-1);});
+  var rgt=ed.querySelector('.cg-right');if(rgt)rgt.addEventListener('click',function(){careGroupMove(1);});
+  var del=ed.querySelector('.cg-delgroup');if(del)del.addEventListener('click',function(){
+    careEnsure();
+    if(storageData.groups.length<=1){alert('Нельзя удалить единственный тип. Сначала создайте другой.');return;}
+    var g=careCurGroup();var nm2=(g.name&&(g.name.ru||g.name.sr))||('Тип '+(careGroupIdx+1));
+    if(g.blocks.length&&!confirm('Удалить тип «'+nm2+'» вместе со всеми блоками ('+g.blocks.length+')? Отменить нельзя.'))return;
+    if(!g.blocks.length&&!confirm('Удалить тип «'+nm2+'»?'))return;
+    storageData.groups.splice(careGroupIdx,1);if(careGroupIdx>=storageData.groups.length)careGroupIdx=storageData.groups.length-1;renderCareAdmin();careDraftSave();
+  });
+}
+function careGroupMove(d){careEnsure();var i=careGroupIdx,j=i+d;if(j<0||j>=storageData.groups.length)return;var a=storageData.groups;var t=a[i];a[i]=a[j];a[j]=t;careGroupIdx=j;renderCareAdmin();careDraftSave();}
 function bindCareEditor(){
   var lang=storeLang;
   document.querySelectorAll('#careEditor .care-block').forEach(function(el){
-    var i=Number(el.dataset.i),b=storageData.blocks[i];
+    var i=Number(el.dataset.i),b=careCurGroup().blocks[i];
     el.querySelector('.cb-up').addEventListener('click',function(){careMove(i,-1);});
     el.querySelector('.cb-down').addEventListener('click',function(){careMove(i,1);});
-    el.querySelector('.cb-del').addEventListener('click',function(){if(confirm('Удалить блок?')){storageData.blocks.splice(i,1);renderCareAdmin();}});
+    el.querySelector('.cb-del').addEventListener('click',function(){if(confirm('Удалить блок?')){careCurGroup().blocks.splice(i,1);renderCareAdmin();}});
     var tx=el.querySelector('.cb-text');
     if(tx)tx.addEventListener('input',function(){b.t=b.t||{};b.t[lang]=this.value;renderCarePreview();});
     el.querySelectorAll('.ct-cell').forEach(function(c){
@@ -322,11 +420,11 @@ function careTableAddRow(b){var n=careCols(b);['ru','sr'].forEach(function(L){b.
 function careTableAddCol(b){['ru','sr'].forEach(function(L){b.t[L]=b.t[L]||[[]];b.t[L].forEach(function(row){row.push('');});});}
 function careTableDelCol(b){if(careCols(b)<=1)return;['ru','sr'].forEach(function(L){(b.t[L]||[]).forEach(function(row){row.pop();});});}
 function careTableDelRow(b,r){var rows=(b.t&&b.t.ru&&b.t.ru.length)||0;if(rows<=1)return;['ru','sr'].forEach(function(L){if(b.t[L]&&b.t[L].length>r)b.t[L].splice(r,1);});}
-function careMove(i,d){var j=i+d;if(j<0||j>=storageData.blocks.length)return;var a=storageData.blocks;var tmp=a[i];a[i]=a[j];a[j]=tmp;renderCareAdmin();}
+function careMove(i,d){var a=careCurGroup().blocks;var j=i+d;if(j<0||j>=a.length)return;var tmp=a[i];a[i]=a[j];a[j]=tmp;renderCareAdmin();}
 function careAddBlock(type){careEnsure();
-  if(type==='table')storageData.blocks.push({type:'table',t:{ru:[['Колонка 1','Колонка 2'],['','']],sr:[['Kolona 1','Kolona 2'],['','']]}});
-  else if(type==='note')storageData.blocks.push({type:'note',color:'yellow',t:{ru:'',sr:''}});
-  else storageData.blocks.push({type:type,t:{ru:'',sr:''}});
+  if(type==='table')careCurGroup().blocks.push({type:'table',t:{ru:[['Колонка 1','Колонка 2'],['','']],sr:[['Kolona 1','Kolona 2'],['','']]}});
+  else if(type==='note')careCurGroup().blocks.push({type:'note',color:'yellow',t:{ru:'',sr:''}});
+  else careCurGroup().blocks.push({type:type,t:{ru:'',sr:''}});
   renderCareAdmin();
 }
 function careDocInnerHtml(lang,pname,withMeta){
@@ -338,7 +436,7 @@ function careDocInnerHtml(lang,pname,withMeta){
     var meta=(pname?((sr?'Za: ':'Для: ')+esc(pname)+' · '):'')+(sr?'Datum: ':'Дата: ')+dateStr;
     head+='<div class="cg-meta">'+meta+'</div>';}
   else head+='<div class="cg-meta"></div>';
-  return head+careBlocksHtml(storageData.blocks,lang);
+  return head+careBlocksHtml(careFlatten(),lang);
 }
 function renderCarePreview(){var pv=document.getElementById('carePreview');if(!pv)return;
   pv.innerHTML=careDocInnerHtml(storeLang,'',false);careDraftSave();}
@@ -359,6 +457,7 @@ function careCheckDraft(){
 }
 function saveStorage(){
   careEnsure();
+  storageData.blocks=careFlatten();
   careDraftSave();
   if(typeof cloudState!=='undefined'&&cloudState!=='on'){
     alert('Облако не подключено — в облако не сохранится. Но ваш черновик сохранён в браузере, работа НЕ потеряется.\n\nНажмите «Облако…», подключитесь и сохраните снова.');return;}
