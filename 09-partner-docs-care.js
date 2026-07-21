@@ -311,10 +311,25 @@ function renderCareAdmin(){
      '<button class="btn btn-line btn-sm cg-left" title="переместить тип левее"'+(careGroupIdx===0?' disabled style="opacity:.4;"':'')+'>←</button>'+
      '<button class="btn btn-line btn-sm cg-right" title="переместить тип правее"'+(careGroupIdx===storageData.groups.length-1?' disabled style="opacity:.4;"':'')+'>→</button>'+
      '<button class="btn btn-line btn-sm danger cg-delgroup">Удалить тип</button></div>';
+  var moveOpts='';
+  if(storageData.groups.length>1){
+    var others=[];
+    storageData.groups.forEach(function(g,gi){if(gi!==careGroupIdx)others.push({id:g.id,name:(g.name&&(g.name[lang]||g.name.ru||g.name.sr))||('Тип '+(gi+1))});});
+    if(others.length){
+      var moveO='',copyO='';
+      others.forEach(function(o){moveO+='<option value="move:'+esc(o.id)+'">'+esc(o.name)+'</option>';copyO+='<option value="copy:'+esc(o.id)+'">'+esc(o.name)+'</option>';});
+      moveOpts='<select class="cb-moveto" style="font-size:12px;padding:4px 7px;border:1px solid var(--line);border-radius:8px;margin-right:6px;max-width:180px;">'+
+        '<option value="">в другой тип…</option>'+
+        '<optgroup label="↦ Переместить (убрать отсюда)">'+moveO+'</optgroup>'+
+        '<optgroup label="⧉ Копировать (оставить здесь)">'+copyO+'</optgroup>'+
+        '</select>';
+    }
+  }
   cur.blocks.forEach(function(b,i){
     var first=(i===0),last=(i===cur.blocks.length-1);
     h+='<div class="care-block" data-i="'+i+'">';
     h+='<div class="care-bhead"><span class="care-btype">'+careTypeLabel(b.type)+'</span><span style="flex:1;"></span>'+
+       moveOpts+
        '<button class="btn btn-line btn-sm cb-up"'+(first?' disabled style="opacity:.4;"':'')+' title="выше">↑</button>'+
        '<button class="btn btn-line btn-sm cb-down"'+(last?' disabled style="opacity:.4;"':'')+' title="ниже">↓</button>'+
        '<button class="btn btn-line btn-sm danger cb-del">Удалить</button></div>';
@@ -393,6 +408,22 @@ function bindCareGroups(){
   });
 }
 function careGroupMove(d){careEnsure();var i=careGroupIdx,j=i+d;if(j<0||j>=storageData.groups.length)return;var a=storageData.groups;var t=a[i];a[i]=a[j];a[j]=t;careGroupIdx=j;renderCareAdmin();careDraftSave();}
+function careMoveBlockToGroup(i,gid){
+  careEnsure();var cur=careCurGroup();var blk=cur.blocks[i];if(!blk)return;
+  var target=null;storageData.groups.forEach(function(g){if(g.id===gid)target=g;});
+  if(!target||target===cur)return;
+  target.blocks.push(blk);cur.blocks.splice(i,1);
+  renderCareAdmin();careDraftSave();
+  toast('Блок перемещён в «'+((target.name&&(target.name[storeLang]||target.name.ru||target.name.sr))||'тип')+'»');
+}
+function careCopyBlockToGroup(i,gid){
+  careEnsure();var cur=careCurGroup();var blk=cur.blocks[i];if(!blk)return;
+  var target=null;storageData.groups.forEach(function(g){if(g.id===gid)target=g;});
+  if(!target||target===cur)return;
+  target.blocks.push(JSON.parse(JSON.stringify(blk)));
+  renderCareAdmin();careDraftSave();
+  toast('Копия добавлена в «'+((target.name&&(target.name[storeLang]||target.name.ru||target.name.sr))||'тип')+'» (оригинал остался здесь)');
+}
 function bindCareEditor(){
   var lang=storeLang;
   document.querySelectorAll('#careEditor .care-block').forEach(function(el){
@@ -400,6 +431,7 @@ function bindCareEditor(){
     el.querySelector('.cb-up').addEventListener('click',function(){careMove(i,-1);});
     el.querySelector('.cb-down').addEventListener('click',function(){careMove(i,1);});
     el.querySelector('.cb-del').addEventListener('click',function(){if(confirm('Удалить блок?')){careCurGroup().blocks.splice(i,1);renderCareAdmin();}});
+    var mv=el.querySelector('.cb-moveto');if(mv)mv.addEventListener('change',function(){var v=this.value;if(!v)return;var ci=v.indexOf(':');var mode=v.slice(0,ci),gid=v.slice(ci+1);if(mode==='move')careMoveBlockToGroup(i,gid);else if(mode==='copy')careCopyBlockToGroup(i,gid);});
     var tx=el.querySelector('.cb-text');
     if(tx)tx.addEventListener('input',function(){b.t=b.t||{};b.t[lang]=this.value;renderCarePreview();});
     el.querySelectorAll('.ct-cell').forEach(function(c){

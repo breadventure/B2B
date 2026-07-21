@@ -143,7 +143,15 @@ function LB(lang){return (lang==='sr')?{
   priceNote:'Цены указаны с учётом PDV (ставка указана у каждой позиции). Доставка по Белграду — 350 дин. (при заказе от 2500 дин. без PDV; бесплатно от 7000 дин. без PDV). Менее 2500 дин. — самовывоз. В воскресенье отгрузки не осуществляются.',
   foot:'Предложение действует по предварительному согласованию. Заказ — не позднее 48 ч до поставки.',owner:'Светлана Васильева (основательница)',sub:'ремесленная пекарня · Белград'
 };}
-function logoHTML(){return document.querySelector('.logo-box .bv-logo').outerHTML;}
+function logoHTML(){
+  var el=document.querySelector('.logo-box .bv-logo');
+  if(!el)return '';
+  var svg=el.cloneNode(true);
+  svg.setAttribute('width','72');
+  svg.setAttribute('height','72');
+  svg.style.width='72px';svg.style.height='72px';svg.style.flex='none';
+  return svg.outerHTML;
+}
 function kpDateMs(id){var el=document.getElementById(id||'kpDate');
   if(el&&el.value){var d=new Date(el.value+'T12:00:00');if(!isNaN(d.getTime()))return d.getTime();}
   return Date.now();}
@@ -226,11 +234,13 @@ function renderKPHtml(kp){
     _g.items.forEach(function(it){
     var ph=photoFor(it.name,it.weight);
     var u=uomLoc(it.uom,kp.lang);
-    h+='<div class="kp-prod" style="display:block;page-break-inside:avoid;margin-bottom:20px;">';
+    h+='<div class="kp-prod" style="display:block;page-break-inside:avoid;margin-bottom:22px;">';
     h+='<div class="kp-prod-row" style="display:flex;gap:18px;align-items:flex-start;">';
     if(ph)h+='<img src="'+ph+'" alt="" style="width:200px;height:auto;flex:none;border-radius:12px;border:1px solid #e6e2d3;">';
     h+='<div class="info" style="flex:1;min-width:0;"><h4>'+esc(it.name)+(it.weight?'<span class="w">'+esc(it.weight)+'</span>':'')+'</h4>';
-    if(it.sostav)h+='<div class="sostav"><b>'+l.sastav+'</b> '+esc(it.sostav)+'</div>';
+    if(it.desc)h+='<div class="desc" style="margin-top:6px;">'+esc(it.desc)+'</div>';
+    h+='</div></div>';
+    if(it.sostav)h+='<div class="sostav" style="margin-top:12px;"><b>'+l.sastav+'</b> '+esc(it.sostav)+'</div>';
     if(kp.type==='primary'){
       h+='<div class="kp-baseprice">'+l.base+': '+fmt(it.retail)+' '+l.cur+' · PDV '+(it.pdv!=null?it.pdv:10)+'%</div>';
       h+=tiersTableFromData(it,l,kp.lang);
@@ -241,8 +251,6 @@ function renderKPHtml(kp){
          '<span class="pp">× '+it.qty+' '+esc(u)+' = <b>'+fmt(it.unit*it.qty)+' '+l.cur+'</b></span></div>';
       h+=tiersTableFromData(it,l,kp.lang);
     }
-    h+='</div></div>';
-    if(it.desc)h+='<div class="desc" style="margin-top:10px;">'+esc(it.desc)+'</div>';
     h+='</div>';
     });
   });
