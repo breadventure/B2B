@@ -353,8 +353,7 @@ function renderCareAdmin(){
   bindCareGroups();
   bindCareEditor();
   renderCarePreview();
-  var up=document.getElementById('careUpdated');
-  if(up)up.textContent=(storageData.updated?('Сохранено: '+new Date(storageData.updated).toLocaleString('ru-RU')):'Ещё не сохранено в облако');
+  if(!careDirty)careSetStatus(storageData.updated?('Сохранено: '+new Date(storageData.updated).toLocaleString('ru-RU')):'Ещё не сохранено');
   if(typeof renderCareVisibility==='function')renderCareVisibility();
   if(typeof fillCareDocTypes==='function')fillCareDocTypes();
   if(typeof renderCareHist==='function')renderCareHist();
@@ -513,7 +512,7 @@ var careDraftChecked=false;
 var careDirty=false,careLastHist=0;
 function careDraftSave(){
   try{localStorage.setItem('bv_b2b_storage_draft',JSON.stringify({data:storageData,ts:Date.now()}));}catch(e){}
-  careDirty=true;careHistPush();careMarkDirty();
+  careDirty=true;careHistPush();careScheduleAutoSave();
 }
 function careHistPush(force){
   try{
@@ -530,10 +529,7 @@ function careHistPush(force){
     if(typeof renderCareHist==='function')renderCareHist();
   }catch(e){}
 }
-function careMarkDirty(){
-  var up=document.getElementById('careUpdated');
-  if(up&&careDirty)up.innerHTML='<b style="color:#c05129;">Есть несохранённые изменения — нажмите «Сохранить»</b>';
-}
+function careMarkDirty(){if(careDirty)careSetStatus('Изменено — сохраняю…');}
 window.addEventListener('beforeunload',function(e){
   if(careDirty){e.preventDefault();e.returnValue='Есть несохранённые изменения в разделе «Хранение».';return e.returnValue;}
 });
@@ -569,41 +565,55 @@ function careCheckDraft(){
   if(!d||!d.data)return;
   var cloudTs=(storageData&&storageData.updated)||0;
   if(d.ts>cloudTs+1500){
-    if(confirm('Найден несохранённый черновик раздела «Хранение» от '+new Date(d.ts).toLocaleString('ru-RU')+'.\n\nВосстановить его?\n\nОК — восстановить черновик (ваши несохранённые правки).\nОтмена — оставить версию из облака.')){
-      storageData=d.data;
-    }
+    careHistPush(true);
+    storageData=d.data;
+    careDirty=true;
+    setTimeout(function(){toast('Восстановлены несохранённые правки от '+new Date(d.ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}));careScheduleAutoSave();},300);
   }
 }
-function saveStorage(){
+function careCloudSave(silent){
   careEnsure();
   storageData.blocks=careFlatten();
-  careDraftSave();
   if(typeof cloudState!=='undefined'&&cloudState!=='on'){
-    alert('Облако не подключено — в облако не сохранится. Но ваш черновик сохранён в браузере, работа НЕ потеряется.\n\nНажмите «Облако…», подключитесь и сохраните снова.');return;}
-  if(!GAS_URL){alert('Облако не настроено.');return;}
-  var json=JSON.stringify(storageData);
-  if(json.length>48000){alert('Внимание: раздел очень большой ('+Math.round(json.length/1000)+' тыс. символов) и может не поместиться в облако целиком. Черновик в браузере сохранён полностью. Напишите разработчику — снимем лимит.');}
-  var btn=document.getElementById('careSave');if(btn){btn.disabled=true;btn.textContent='Сохранение…';}
-  if(typeof setSync!=='undefined')setSync('off','Сохранение…');
+    if(!silent)alert('Облако не подключено. Правки сохранены в браузере (см. «Локальные копии») — ничего не потеряно.\n\nНажмите «Облако…», подключитесь и сохраните снова.');
+    careSetStatus('Облако недоступно — правки сохранены в браузере',true);return;}
+  if(!GAS_URL){if(!silent)alert('Облако не настроено.');return;}
+  var btn=document.getElementById('careSave');
+  if(!silent&&btn){btn.disabled=true;btn.textContent='Сохранение…';}
+  careSetStatus('Сохранение…');
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,key:'storage',value:storageData})})
     .then(function(r){return r.json();}).then(function(j){
       if(btn){btn.disabled=false;btn.textContent='Сохранить';}
       if(j&&j.ok){
         storageData.updated=Date.now();careHistPush(true);careDirty=false;
+        try{localStorage.removeItem('bv_b2b_storage_draft');}catch(e){}
         if(typeof setSync!=='undefined')setSync('on');
-        var up=document.getElementById('careUpdated');if(up)up.textContent='Сохранено: '+new Date(storageData.updated).toLocaleString('ru-RU');
-        toast('Раздел сохранён в облако. Партнёр увидит его при следующем входе.');
+        careSetStatus('Сохранено автоматически: '+new Date(storageData.updated).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}));
+        if(!silent)toast('Раздел сохранён. Партнёр увидит его при следующем входе.');
       } else {
         if(typeof setSync!=='undefined')setSync('err','Не сохранилось');
-        alert(j&&j.error==='auth'?'Не сохранилось: неверный мастер-ключ. Черновик в браузере цел. Проверьте «Облако…».':'Не удалось сохранить в облако. Черновик в браузере цел — ничего не потеряно. Попробуйте ещё раз.');
+        careSetStatus('Не удалось сохранить — правки в браузере целы',true);
+        if(!silent)alert(j&&j.error==='auth'?'Не сохранилось: неверный мастер-ключ. Правки в браузере целы.':'Не удалось сохранить в облако. Правки в браузере целы.');
       }
     }).catch(function(){
       if(btn){btn.disabled=false;btn.textContent='Сохранить';}
       if(typeof setSync!=='undefined')setSync('err','Нет связи');
-      alert('Не удалось сохранить (нет связи с облаком). Черновик сохранён в браузере — работа не потеряна. Проверьте интернет и сохраните снова.');
+      careSetStatus('Нет связи — правки сохранены в браузере',true);
+      if(!silent)alert('Не удалось сохранить (нет связи). Правки сохранены в браузере — ничего не потеряно.');
     });
 }
+function careSetStatus(txt,warn){
+  var up=document.getElementById('careUpdated');if(!up)return;
+  up.innerHTML=warn?('<b style="color:#c05129;">'+esc(txt)+'</b>'):esc(txt);
+}
+var careAutoTimer=null;
+function careScheduleAutoSave(){
+  if(careAutoTimer)clearTimeout(careAutoTimer);
+  careSetStatus('Изменено — сохраняю…');
+  careAutoTimer=setTimeout(function(){careAutoTimer=null;careCloudSave(true);},2500);
+}
+function saveStorage(){careCloudSave(false);}
 function saveStorage_OLD(){
   careEnsure();
   if(typeof cloudState!=='undefined'&&cloudState!=='on'){alert('Облако не подключено — раздел не сохранится. Нажмите «Облако…» и подключитесь, затем сохраните снова.');return;}
