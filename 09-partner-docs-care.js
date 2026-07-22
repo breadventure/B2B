@@ -317,6 +317,7 @@ function renderCareAdmin(){
      '<input class="inp cg-name" value="'+esc((cur.name&&cur.name[lang])||'')+'" placeholder="Название типа ('+(lang==='sr'?'срб':'рус')+') — напр. Булки, Хлеба, Крема" style="max-width:300px;">'+
      '<button class="btn btn-line btn-sm cg-left" title="переместить тип левее"'+(careGroupIdx===0?' disabled style="opacity:.4;"':'')+'>←</button>'+
      '<button class="btn btn-line btn-sm cg-right" title="переместить тип правее"'+(careGroupIdx===storageData.groups.length-1?' disabled style="opacity:.4;"':'')+'>→</button>'+
+     '<button class="btn btn-line btn-sm cg-dup">⧉ Дублировать тип</button>'+
      '<button class="btn btn-line btn-sm danger cg-delgroup">Удалить тип</button></div>';
   var moveOpts='';
   if(storageData.groups.length>1){
@@ -332,10 +333,16 @@ function renderCareAdmin(){
         '</select>';
     }
   }
+  h+='<div id="careBulk" style="display:none;gap:8px;flex-wrap:wrap;align-items:center;background:#eef5fb;border:1px solid #bcdcf2;border-radius:11px;padding:9px 12px;margin-bottom:12px;">'+
+     '<span style="font-size:13.5px;">Выбрано: <b id="careBulkN">0</b></span>'+
+     '<select id="careBulkTarget" class="inp" style="width:auto;font-size:13px;padding:6px 9px;"></select>'+
+     '<button class="btn btn-line btn-sm" id="careBulkMove">↦ Переместить</button>'+
+     '<button class="btn btn-line btn-sm" id="careBulkCopy">⧉ Копировать</button>'+
+     '<button class="btn btn-line btn-sm" id="careBulkClear">Снять выделение</button></div>';
   cur.blocks.forEach(function(b,i){
     var first=(i===0),last=(i===cur.blocks.length-1);
     h+='<div class="care-block" data-i="'+i+'">';
-    h+='<div class="care-bhead"><span class="cb-drag" title="Перетащите, чтобы переместить в любое место" style="cursor:grab;user-select:none;font-size:17px;line-height:1;color:var(--muted);margin-right:9px;">⠿</span><span class="care-btype">'+careTypeLabel(b.type)+'</span><span style="flex:1;"></span>'+
+    h+='<div class="care-bhead"><input type="checkbox" class="cb-sel" data-i="'+i+'" title="Выбрать блок" style="margin-right:8px;width:16px;height:16px;cursor:pointer;"><span class="cb-drag" title="Перетащите, чтобы переместить в любое место" style="cursor:grab;user-select:none;font-size:17px;line-height:1;color:var(--muted);margin-right:9px;">⠿</span><span class="care-btype">'+careTypeLabel(b.type)+'</span><span style="flex:1;"></span>'+
        moveOpts+
        '<button class="btn btn-line btn-sm cb-up"'+(first?' disabled style="opacity:.4;"':'')+' title="выше">↑</button>'+
        '<button class="btn btn-line btn-sm cb-down"'+(last?' disabled style="opacity:.4;"':'')+' title="ниже">↓</button>'+
@@ -398,6 +405,40 @@ function renderCareVisList(){
     });
   });
 }
+function careSelected(){
+  var out=[];document.querySelectorAll('#careEditor .cb-sel').forEach(function(c){if(c.checked)out.push(Number(c.dataset.i));});
+  out.sort(function(a,b){return a-b;});return out;
+}
+function careBulkRefresh(){
+  var bar=document.getElementById('careBulk');if(!bar)return;
+  var sel=careSelected();
+  var n=document.getElementById('careBulkN');if(n)n.textContent=sel.length;
+  bar.style.display=sel.length?'flex':'none';
+}
+function careBulkFillTargets(){
+  var sel=document.getElementById('careBulkTarget');if(!sel)return;
+  careEnsure();var lang=storeLang;var h='';
+  storageData.groups.forEach(function(g,gi){
+    if(gi===careGroupIdx)return;
+    h+='<option value="'+esc(g.id)+'">'+esc((g.name&&(g.name[lang]||g.name.ru||g.name.sr))||('Тип '+(gi+1)))+'</option>';
+  });
+  sel.innerHTML=h||'<option value="">нет других типов</option>';
+}
+function careBulkApply(mode){
+  careEnsure();
+  var tsel=document.getElementById('careBulkTarget');var gid=tsel?tsel.value:'';
+  if(!gid){toast('Создайте другой тип, чтобы переносить блоки');return;}
+  var target=null;storageData.groups.forEach(function(g){if(g.id===gid)target=g;});
+  if(!target)return;
+  var cur=careCurGroup();var idx=careSelected();
+  if(!idx.length)return;
+  var picked=idx.map(function(i){return cur.blocks[i];});
+  picked.forEach(function(b){target.blocks.push(mode==='copy'?JSON.parse(JSON.stringify(b)):b);});
+  if(mode==='move'){for(var k=idx.length-1;k>=0;k--)cur.blocks.splice(idx[k],1);}
+  renderCareAdmin();careDraftSave();
+  var nm=(target.name&&(target.name[storeLang]||target.name.ru||target.name.sr))||'тип';
+  toast((mode==='copy'?'Скопировано ':'Перенесено ')+picked.length+' блок(ов) в «'+nm+'»');
+}
 function bindCareGroups(){
   var ed=document.getElementById('careEditor');if(!ed)return;var lang=storeLang;
   ed.querySelectorAll('.cg-tab').forEach(function(b){b.addEventListener('click',function(){careGroupIdx=Number(this.dataset.g);renderCareAdmin();});});
@@ -406,6 +447,23 @@ function bindCareGroups(){
     var tab=ed.querySelector('.cg-tab.btn-primary');if(tab)tab.textContent=this.value||('Тип '+(careGroupIdx+1));});
   var lft=ed.querySelector('.cg-left');if(lft)lft.addEventListener('click',function(){careGroupMove(-1);});
   var rgt=ed.querySelector('.cg-right');if(rgt)rgt.addEventListener('click',function(){careGroupMove(1);});
+  careBulkFillTargets();careBulkRefresh();
+  var bm=document.getElementById('careBulkMove');if(bm)bm.addEventListener('click',function(){careBulkApply('move');});
+  var bc=document.getElementById('careBulkCopy');if(bc)bc.addEventListener('click',function(){careBulkApply('copy');});
+  var bcl=document.getElementById('careBulkClear');if(bcl)bcl.addEventListener('click',function(){
+    document.querySelectorAll('#careEditor .cb-sel').forEach(function(c){c.checked=false;});careBulkRefresh();});
+  var dup=ed.querySelector('.cg-dup');if(dup)dup.addEventListener('click',function(){
+    careEnsure();var g=careCurGroup();
+    var copy=JSON.parse(JSON.stringify(g));
+    copy.id=uid();
+    copy.name=copy.name||{ru:'',sr:''};
+    copy.name.ru=(copy.name.ru||'')+' (копия)';
+    copy.name.sr=(copy.name.sr||'')+' (kopija)';
+    storageData.groups.splice(careGroupIdx+1,0,copy);
+    careGroupIdx=careGroupIdx+1;
+    renderCareAdmin();careDraftSave();
+    toast('Тип продублирован — правьте копию');
+  });
   var del=ed.querySelector('.cg-delgroup');if(del)del.addEventListener('click',function(){
     careEnsure();
     if(storageData.groups.length<=1){alert('Нельзя удалить единственный тип. Сначала создайте другой.');return;}
@@ -455,6 +513,7 @@ function bindCareEditor(){
     el.querySelector('.cb-up').addEventListener('click',function(){careMove(i,-1);});
     el.querySelector('.cb-down').addEventListener('click',function(){careMove(i,1);});
     el.querySelector('.cb-del').addEventListener('click',function(){if(confirm('Удалить блок?')){careCurGroup().blocks.splice(i,1);renderCareAdmin();careDraftSave();}});
+    var cbx=el.querySelector('.cb-sel');if(cbx)cbx.addEventListener('change',careBulkRefresh);
     var mv=el.querySelector('.cb-moveto');if(mv)mv.addEventListener('change',function(){var v=this.value;if(!v)return;var ci=v.indexOf(':');var mode=v.slice(0,ci),gid=v.slice(ci+1);if(mode==='move')careMoveBlockToGroup(i,gid);else if(mode==='copy')careCopyBlockToGroup(i,gid);});
     var tx=el.querySelector('.cb-text');
     if(tx)tx.addEventListener('input',function(){b.t=b.t||{};b.t[lang]=this.value;renderCarePreview();careDraftSave();});
