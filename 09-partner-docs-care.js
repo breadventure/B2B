@@ -338,6 +338,7 @@ function renderCareAdmin(){
      '<select id="careBulkTarget" class="inp" style="width:auto;font-size:13px;padding:6px 9px;"></select>'+
      '<button class="btn btn-line btn-sm" id="careBulkMove">↦ Переместить</button>'+
      '<button class="btn btn-line btn-sm" id="careBulkCopy">⧉ Копировать</button>'+
+     '<button class="btn btn-line btn-sm danger" id="careBulkDel">Удалить выбранные</button>'+
      '<button class="btn btn-line btn-sm" id="careBulkClear">Снять выделение</button></div>';
   cur.blocks.forEach(function(b,i){
     var first=(i===0),last=(i===cur.blocks.length-1);
@@ -439,6 +440,16 @@ function careBulkApply(mode){
   var nm=(target.name&&(target.name[storeLang]||target.name.ru||target.name.sr))||'тип';
   toast((mode==='copy'?'Скопировано ':'Перенесено ')+picked.length+' блок(ов) в «'+nm+'»');
 }
+function careBulkDelete(){
+  careEnsure();
+  var cur=careCurGroup();var idx=careSelected();
+  if(!idx.length)return;
+  if(!confirm('Удалить выбранные блоки ('+idx.length+' шт.)? Отменить нельзя, но останется запись в «Локальных копиях».'))return;
+  careHistPush(true);
+  for(var k=idx.length-1;k>=0;k--)cur.blocks.splice(idx[k],1);
+  renderCareAdmin();careDraftSave();
+  toast('Удалено блоков: '+idx.length);
+}
 function bindCareGroups(){
   var ed=document.getElementById('careEditor');if(!ed)return;var lang=storeLang;
   ed.querySelectorAll('.cg-tab').forEach(function(b){b.addEventListener('click',function(){careGroupIdx=Number(this.dataset.g);renderCareAdmin();});});
@@ -450,6 +461,7 @@ function bindCareGroups(){
   careBulkFillTargets();careBulkRefresh();
   var bm=document.getElementById('careBulkMove');if(bm)bm.addEventListener('click',function(){careBulkApply('move');});
   var bc=document.getElementById('careBulkCopy');if(bc)bc.addEventListener('click',function(){careBulkApply('copy');});
+  var bd=document.getElementById('careBulkDel');if(bd)bd.addEventListener('click',careBulkDelete);
   var bcl=document.getElementById('careBulkClear');if(bcl)bcl.addEventListener('click',function(){
     document.querySelectorAll('#careEditor .cb-sel').forEach(function(c){c.checked=false;});careBulkRefresh();});
   var dup=ed.querySelector('.cg-dup');if(dup)dup.addEventListener('click',function(){
