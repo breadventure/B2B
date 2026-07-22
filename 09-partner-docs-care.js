@@ -608,14 +608,13 @@ function renderCareHist(){
   var box=document.getElementById('careHistList');if(!box)return;
   var arr=[];try{arr=JSON.parse(localStorage.getItem('bv_b2b_storage_hist')||'[]');}catch(e){arr=[];}
   if(!arr.length){box.innerHTML='<div class="hint">Пока нет локальных копий. Они создаются автоматически, когда вы правите раздел.</div>';return;}
-  var h='<div style="display:flex;flex-direction:column;gap:7px;">';
+  var h='<div>';
   arr.slice().reverse().forEach(function(sn,ri){
     var idx=arr.length-1-ri;var types='—',blocks=0;
     try{var d=JSON.parse(sn.json);types=(d.groups||[]).map(function(g){return (g.name&&(g.name.ru||g.name.sr))||'—';}).join(', ');(d.groups||[]).forEach(function(g){blocks+=(g.blocks||[]).length;});}catch(e){}
-    h+='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:9px 12px;">'+
-       '<div style="flex:1;min-width:200px;font-size:13px;"><b>'+new Date(sn.ts).toLocaleString('ru-RU')+'</b>'+
-       '<div class="hint" style="margin-top:2px;">типы: '+esc(types)+' · блоков: '+blocks+'</div></div>'+
-       '<button class="btn btn-line btn-sm ch-restore" data-i="'+idx+'">Восстановить</button></div>';
+    h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:6px 2px;">'+
+       '<div style="flex:1;min-width:170px;font-size:12.5px;line-height:1.35;"><b>'+new Date(sn.ts).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</b> · '+esc(types)+' · '+blocks+' бл.</div>'+
+       '<button class="btn btn-line btn-sm ch-restore" data-i="'+idx+'" style="padding:4px 9px;font-size:12px;">Восстановить</button></div>';
   });
   h+='</div>';box.innerHTML=h;
   box.querySelectorAll('.ch-restore').forEach(function(b){b.addEventListener('click',function(){
@@ -644,7 +643,7 @@ function careCheckDraft(){
 }
 function careCloudSave(silent){
   careEnsure();
-  storageData.blocks=careFlatten();
+  if(storageData.blocks)delete storageData.blocks;   // плоскую копию собирает сервер — не дублируем
   if(typeof cloudState!=='undefined'&&cloudState!=='on'){
     if(!silent)alert('Облако не подключено. Правки сохранены в браузере (см. «Локальные копии») — ничего не потеряно.\n\nНажмите «Облако…», подключитесь и сохраните снова.');
     careSetStatus('Облако недоступно — правки сохранены в браузере',true);return;}
@@ -652,10 +651,16 @@ function careCloudSave(silent){
   var btn=document.getElementById('careSave');
   if(!silent&&btn){btn.disabled=true;btn.textContent='Сохранение…';}
   careSetStatus('Сохранение…');
+  var _expect=JSON.stringify(storageData).length;
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,key:'storage',value:storageData})})
     .then(function(r){return r.json();}).then(function(j){
       if(btn){btn.disabled=false;btn.textContent='Сохранить';}
+      if(j&&j.ok&&j.size!=null&&j.size<_expect-50){
+        careSetStatus('Облако сохранило не всё — правки целы в браузере',true);
+        alert('Внимание: облако приняло не весь раздел. Ваши правки целы в браузере («Локальные копии»).\n\nВероятно, на сервере старая версия Code.gs — обновите её и переразверните.');
+        return;
+      }
       if(j&&j.ok){
         storageData.updated=Date.now();careHistPush(true);careDirty=false;
         try{localStorage.removeItem('bv_b2b_storage_draft');}catch(e){}
