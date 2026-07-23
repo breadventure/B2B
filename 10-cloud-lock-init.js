@@ -128,6 +128,8 @@ function initLock(onUnlock){
 function bootApp(){
   loadAll().then(function(){
     renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();
+    if(typeof bvRefreshPartnerHints==='function')bvRefreshPartnerHints();
+    if(typeof renderOrdManual==='function')renderOrdManual();
     offerLines=[newLine()];renderOffer();
   });
 }

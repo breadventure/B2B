@@ -453,3 +453,111 @@ function renderAdminOrders(){
     if(ce)ce.addEventListener('click',function(){addC(false);});
   });
 }
+
+/* ===================== РУЧНОЕ СОЗДАНИЕ ЗАКАЗА (админ) ===================== */
+var ordManualLines=[];
+function ordManualEnsure(){if(!ordManualLines.length)ordManualLines=[{id:'',qty:1}];}
+function ordManualFillPartners(){
+  var sel=document.getElementById('ordManualPartner');if(!sel)return;
+  var cur=sel.value;
+  var h='<option value="">— выберите партнёра —</option>';
+  (partners||[]).forEach(function(p){
+    if(p.active===false)return;
+    var pr=(profilesAdmin||{})[p.id];
+    var nm=p.name+((pr&&pr.company&&pr.company!==p.name)?(' · '+pr.company):'');
+    h+='<option value="'+esc(p.id)+'">'+esc(nm)+'</option>';
+  });
+  sel.innerHTML=h;if(cur)sel.value=cur;
+}
+function ordManualCalc(){
+  var total=0;
+  ordManualLines.forEach(function(L){
+    var it=(catalog||[]).filter(function(c){return c.id===L.id;})[0];
+    if(!it){L._sum=0;L._unit=0;L._disc=0;return;}
+    var qty=Number(L.qty)||0;
+    var disc=discountFor(it,qty);
+    var unit=Math.round(it.retail*(1-disc/100)*100)/100;
+    L._disc=disc;L._unit=unit;L._sum=Math.round(unit*qty*100)/100;
+    total+=L._sum;
+  });
+  return Math.round(total*100)/100;
+}
+function renderOrdManual(){
+  ordManualEnsure();
+  var box=document.getElementById('ordManualLines');if(!box)return;
+  ordManualFillPartners();
+  var opts='<option value="">— выберите позицию —</option>';
+  (catalog||[]).forEach(function(it){
+    opts+='<option value="'+esc(it.id)+'">'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+'</option>';
+  });
+  var h='';
+  ordManualLines.forEach(function(L,i){
+    var sel=opts.replace('value="'+L.id+'"','value="'+L.id+'" selected');
+    h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:7px;" data-i="'+i+'">'+
+       '<select class="inp oml-item" style="flex:1;min-width:190px;">'+sel+'</select>'+
+       '<input type="number" min="1" class="inp oml-qty" value="'+(Number(L.qty)||1)+'" style="width:80px;">'+
+       '<span class="hint" style="min-width:120px;">'+(L._unit?(fmt(L._unit)+' дин/шт'+(L._disc?' (−'+L._disc+'%)':'')):'')+'</span>'+
+       '<b style="min-width:90px;text-align:right;">'+(L._sum?fmt(L._sum)+' дин.':'—')+'</b>'+
+       '<button class="btn btn-line btn-sm danger oml-del">✕</button></div>';
+  });
+  box.innerHTML=h;
+  var total=ordManualCalc();
+  var tEl=document.getElementById('ordManualTotal');if(tEl)tEl.textContent=fmt(total)+' дин.';
+  box.querySelectorAll('.oml-item').forEach(function(el,i){el.addEventListener('change',function(){ordManualLines[i].id=this.value;renderOrdManual();});});
+  box.querySelectorAll('.oml-qty').forEach(function(el,i){el.addEventListener('input',function(){ordManualLines[i].qty=this.value;renderOrdManual();});});
+  box.querySelectorAll('.oml-del').forEach(function(el,i){el.addEventListener('click',function(){ordManualLines.splice(i,1);renderOrdManual();});});
+}
+function ordManualSubmit(){
+  if(!GAS_URL||(typeof cloudState!=='undefined'&&cloudState!=='on')){alert('Нужно подключённое облако — заказ создаётся в общей базе.');return;}
+  var pid=document.getElementById('ordManualPartner').value;
+  if(!pid){alert('Выберите партнёра');return;}
+  ordManualCalc();
+  var items=[];
+  ordManualLines.forEach(function(L){
+    var it=(catalog||[]).filter(function(c){return c.id===L.id;})[0];
+    if(!it||!(Number(L.qty)>0))return;
+    items.push({name:it.name,weight:it.weight||'',qty:Number(L.qty),uom:it.uom||'шт',sum:L._sum,price:L._unit});
+  });
+  if(!items.length){alert('Добавьте хотя бы одну позицию');return;}
+  var total=items.reduce(function(a,x){return a+(Number(x.sum)||0);},0);
+  var payload={partner_id:pid,
+    contact:document.getElementById('ordManualContact').value.trim(),
+    phone:document.getElementById('ordManualPhone').value.trim(),
+    address:document.getElementById('ordManualAddr').value.trim(),
+    date:document.getElementById('ordManualDate').value,
+    time:document.getElementById('ordManualTime').value,
+    comment:document.getElementById('ordManualNote').value.trim(),
+    items:items,total:Math.round(total*100)/100,source:'manual'};
+  var btn=document.getElementById('ordManualSave');if(btn){btn.disabled=true;btn.textContent='Создаём…';}
+  fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({master:MASTER,adminOrder:payload})})
+    .then(function(r){return r.json();}).then(function(j){
+      if(btn){btn.disabled=false;btn.textContent='Создать заказ';}
+      if(j&&j.ok&&j.order){
+        ordManualLines=[{id:'',qty:1}];
+        ['ordManualContact','ordManualPhone','ordManualAddr','ordManualNote','ordManualTime'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+        renderOrdManual();
+        var oid=j.order.order_id;
+        loadAdminOrders().then(function(){
+          renderAdminOrders();
+          if(confirm('Заказ '+oid+' создан. Он уже виден партнёру в кабинете.\n\nСформировать предрачун прямо сейчас?')){
+            openAdminOrder=oid;renderAdminOrders();
+            setTimeout(function(){if(typeof openDocGen==='function')openDocGen(oid,'predracun');},200);
+          }
+        });
+        toast('Заказ '+oid+' создан');
+      } else {
+        alert(j&&j.error==='nopartner'?'Партнёр не найден в облаке — обновите список партнёров.':
+              (j&&j.error==='noitems'?'Не переданы позиции.':
+              'Не удалось создать заказ. Если на сервере старая версия Code.gs — обновите её и переразверните.'));
+      }
+    }).catch(function(){if(btn){btn.disabled=false;btn.textContent='Создать заказ';}alert('Ошибка соединения с облаком.');});
+}
+(function(){
+  var a=document.getElementById('ordManualAdd');
+  if(a)a.addEventListener('click',function(){ordManualLines.push({id:'',qty:1});renderOrdManual();});
+  var sv=document.getElementById('ordManualSave');
+  if(sv)sv.addEventListener('click',ordManualSubmit);
+  var card=document.getElementById('ordManualCard');
+  if(card)card.addEventListener('toggle',function(){renderOrdManual();},true);
+})();

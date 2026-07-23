@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Wix+Madefor+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=202607221540">
+<link rel="stylesheet" href="styles.css?v=202607231745">
 </head>
 <body>
 <div id="bvLock" style="position:fixed;inset:0;z-index:99999;background:#F4F3E9;display:flex;align-items:center;justify-content:center;font-family:'Wix Madefor Text',sans-serif;">
@@ -3808,6 +3808,30 @@
       <p class="hint" style="margin-bottom:14px;">Сколько всего нужно испечь на выбранную дату доставки и кто что заказал. По умолчанию — сегодня. Из «Календаря» можно кликнуть день — откроется сводка на него.</p>
       <div id="prodSummary"><div class="empty">Нажмите «Обновить» в заказах ниже, чтобы загрузить данные.</div></div>
     </div>
+    <div class="card" id="ordManualCard">
+      <details>
+        <summary style="cursor:pointer;list-style:none;"><span class="cat-title" style="margin-top:0;">➕ Добавить заказ вручную</span></summary>
+        <p class="hint" style="margin:8px 0 12px;">Если партнёр прислал заказ в мессенджере или по телефону. Заказ появится и у вас, и в кабинете партнёра.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+          <div class="field" style="flex:1;min-width:200px;margin:0;"><label class="lbl">Партнёр</label><select class="inp" id="ordManualPartner"></select></div>
+          <div class="field" style="min-width:150px;margin:0;"><label class="lbl">Дата доставки</label><input type="date" class="inp" id="ordManualDate"></div>
+          <div class="field" style="min-width:110px;margin:0;"><label class="lbl">Время</label><input type="time" class="inp" id="ordManualTime"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+          <div class="field" style="flex:1;min-width:180px;margin:0;"><label class="lbl">Контактное лицо</label><input class="inp" id="ordManualContact" placeholder="имя"></div>
+          <div class="field" style="min-width:150px;margin:0;"><label class="lbl">Телефон</label><input class="inp" id="ordManualPhone" placeholder="+381…"></div>
+          <div class="field" style="flex:1;min-width:200px;margin:0;"><label class="lbl">Адрес доставки</label><input class="inp" id="ordManualAddr" placeholder="ул. …"></div>
+        </div>
+        <div class="lbl" style="margin-bottom:6px;">Позиции</div>
+        <div id="ordManualLines"></div>
+        <button class="btn btn-line btn-sm" id="ordManualAdd" style="margin-top:8px;">+ Позиция</button>
+        <div class="field" style="margin:12px 0 0;"><label class="lbl">Комментарий к заказу</label><input class="inp" id="ordManualNote" placeholder="напр. самовывоз"></div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--line);padding-top:12px;">
+          <div style="font-size:15px;">Итого: <b id="ordManualTotal">0 дин.</b></div>
+          <button class="btn btn-primary" id="ordManualSave" style="margin-left:auto;">Создать заказ</button>
+        </div>
+      </details>
+    </div>
     <div class="card">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px;">
         <div class="cat-title" style="margin-top:0;">Заказы партнёров</div>
@@ -3979,7 +4003,7 @@
         <div class="field" style="flex:1;min-width:180px;margin:0;"><label class="lbl">Для кого</label><select class="inp" id="careDocPartner"></select></div>
         <div class="field" style="min-width:190px;margin:0;"><label class="lbl">Тип изделий</label><select class="inp" id="careDocType"></select></div>
         <div class="field" style="min-width:130px;margin:0;"><label class="lbl">Язык</label><select class="inp" id="careDocLang"><option value="ru">Русский</option><option value="sr">Srpski</option></select></div>
-        <button class="btn btn-primary btn-sm" id="careDocBtn" style="margin-bottom:1px;">Открыть PDF</button>
+        <button class="btn btn-primary btn-sm" id="careDocBtn" style="margin-bottom:1px;">Скачать PDF</button><button class="btn btn-line btn-sm" id="careDocSep" style="margin-bottom:1px;">Каждый тип — отдельным файлом</button>
       </div>
     </div>
     <div class="card">
@@ -4084,17 +4108,17 @@
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="01-core.js?v=202607221540"></script>
-<script src="02-tabs-kp.js?v=202607221540"></script>
-<script src="03-catalog.js?v=202607221540"></script>
-<script src="04-calendar-subs.js?v=202607221540"></script>
-<script src="05-terms-archive.js?v=202607221540"></script>
-<script src="06-documents.js?v=202607221540"></script>
-<script src="07-orders-stats.js?v=202607221540"></script>
-<script src="08-orders-partners.js?v=202607221540"></script>
-<script src="09-partner-docs-care.js?v=202607221540"></script>
-<script src="10-cloud-lock-init.js?v=202607221540"></script>
-<script src="11-declarations.js?v=202607221540"></script>
+<script src="01-core.js?v=202607231745"></script>
+<script src="02-tabs-kp.js?v=202607231745"></script>
+<script src="03-catalog.js?v=202607231745"></script>
+<script src="04-calendar-subs.js?v=202607231745"></script>
+<script src="05-terms-archive.js?v=202607231745"></script>
+<script src="06-documents.js?v=202607231745"></script>
+<script src="07-orders-stats.js?v=202607231745"></script>
+<script src="08-orders-partners.js?v=202607231745"></script>
+<script src="09-partner-docs-care.js?v=202607231745"></script>
+<script src="10-cloud-lock-init.js?v=202607231745"></script>
+<script src="11-declarations.js?v=202607231745"></script>
 
 
 </body>

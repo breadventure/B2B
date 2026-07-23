@@ -179,7 +179,7 @@ function applyCloudData(data){
   if(declProductsLegacy&&!Object.keys(declProducts).length)declProducts=declProductsLegacy;
   if(data.foot){for(var fk in DEFAULT_FOOT)if(data.foot[fk]!=null)footData[fk]=data.foot[fk];}
 }
-function rerenderAll(){renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();refreshOfferRefs();}
+function rerenderAll(){renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();refreshOfferRefs();if(typeof bvRefreshPartnerHints==='function')bvRefreshPartnerHints();if(typeof renderOrdManual==='function')renderOrdManual();}
 
 function loadLocal(){
   try{var c=localStorage.getItem(K_CAT);if(c)catalog=JSON.parse(c);}catch(e){}
@@ -263,3 +263,30 @@ function archiveLastKP(){
 }
 function deleteKP(id){if(!confirm('Удалить это КП из архива?'))return;
   kpArchive=kpArchive.filter(function(x){return x.id!==id;});saveKPArch();renderKPArchive();}
+
+/* ===== Единый список партнёров для полей ввода (подсказки) ===== */
+function bvPartnerNames(){
+  var out=[],seen={};
+  (partners||[]).forEach(function(p){
+    if(p.name&&!seen[p.name]){seen[p.name]=1;out.push(p.name);}
+    var pr=(profilesAdmin||{})[p.id];
+    if(pr&&pr.company&&!seen[pr.company]){seen[pr.company]=1;out.push(pr.company);}
+  });
+  return out.sort(function(a,b){return a.localeCompare(b,'ru');});
+}
+function bvPartnerDatalist(){
+  var dl=document.getElementById('bvPartnerList');
+  if(!dl){dl=document.createElement('datalist');dl.id='bvPartnerList';document.body.appendChild(dl);}
+  dl.innerHTML=bvPartnerNames().map(function(n){return '<option value="'+esc(n)+'"></option>';}).join('');
+  return dl;
+}
+function bvAttachPartnerHints(ids){
+  bvPartnerDatalist();
+  (ids||[]).forEach(function(id){
+    var el=document.getElementById(id);
+    if(el&&el.tagName==='INPUT'){el.setAttribute('list','bvPartnerList');el.setAttribute('autocomplete','off');}
+  });
+}
+function bvRefreshPartnerHints(){
+  bvAttachPartnerHints(['partner','declRecipient']);
+}

@@ -724,11 +724,27 @@ function careDocNode(pname,lang,onlyGid){
   wrap.innerHTML=careDocInnerHtml(lang,pname,true,onlyGid);
   return wrap;
 }
-function exportCarePDF(){
+function exportCareSeparate(){
+  careEnsure();
+  var gs=storageData.groups.filter(function(g){return (g.blocks||[]).length;});
+  if(!gs.length){toast('Нет заполненных типов');return;}
+  var btn=document.getElementById('careDocSep');var old=btn?btn.textContent:'';
+  var i=0;
+  function next(){
+    if(i>=gs.length){if(btn){btn.disabled=false;btn.textContent=old;}toast('Готово: файлов — '+gs.length);return;}
+    var g=gs[i];i++;
+    if(btn){btn.disabled=true;btn.textContent='Файл '+i+' из '+gs.length+'…';}
+    exportCarePDF(g.id,next);
+  }
+  next();
+}
+function exportCarePDF(gidOverride,doneCb){
   careEnsure();
   var pid=document.getElementById('careDocPartner').value;
   var lang=document.getElementById('careDocLang').value||'ru';
-  var tsel=document.getElementById('careDocType');var onlyGid=tsel?tsel.value:'';
+  var onlyGid;
+  if(typeof gidOverride==='string')onlyGid=gidOverride;
+  else{var tsel=document.getElementById('careDocType');onlyGid=tsel?tsel.value:'';}
   var pname='';
   if(pid){var pp=(partners||[]).filter(function(x){return x.id===pid;})[0];if(pp)pname=pp.name;
     var pr=(profilesAdmin||{})[pid];if(pr&&pr.company)pname=pr.company;}
@@ -768,8 +784,8 @@ function exportCarePDF(){
       }
       var _tn='';if(onlyGid){storageData.groups.forEach(function(g){if(g.id===onlyGid)_tn=(g.name&&(g.name[lang]||g.name.ru||g.name.sr))||'';});}
       var fname='BreadVenture - '+(lang==='sr'?'Cuvanje i preporuke':'Hranenie i rekomendacii')+(_tn?' - '+_tn:'')+(pname?' - '+pname:'')+'.pdf';
-      pdf.save(fname);done();
-    }).catch(function(e){done();alert('Не удалось сформировать PDF: '+e);});
+      pdf.save(fname);done();if(typeof doneCb==='function')setTimeout(doneCb,900);
+    }).catch(function(e){done();alert('Не удалось сформировать PDF: '+e);if(typeof doneCb==='function')doneCb();});
     }
     var imgs=Array.prototype.slice.call(node.querySelectorAll('img.cg-img[data-fid]')).filter(function(im){return im.getAttribute('data-fid');});
     if(!imgs.length){render();return;}
@@ -793,7 +809,8 @@ function exportCarePDF(){
   var _ci=document.getElementById('careImgInp');if(_ci)_ci.addEventListener('change',function(e){var f=e.target.files[0];careAddImage(f);e.target.value='';});
   var _cf=document.getElementById('careFileInp');if(_cf)_cf.addEventListener('change',function(e){var f=e.target.files[0];careAddFile(f);e.target.value='';});
   on('careSave',saveStorage);
-  on('careDocBtn',exportCarePDF);
+  on('careDocBtn',function(){exportCarePDF();});
+  on('careDocSep',exportCareSeparate);
   document.querySelectorAll('#careLangSeg .seg-b').forEach(function(b){
     b.addEventListener('click',function(){
       document.querySelectorAll('#careLangSeg .seg-b').forEach(function(x){x.classList.remove('active');});
