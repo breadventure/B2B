@@ -5,6 +5,9 @@
  * порядок подключения в index.html важен: 01 первым, далее по номерам.
  * ============================================================ */
 
+if(typeof window!=='undefined'&&!window.driveThumb){window.driveThumb=function(id){return 'https://drive.google.com/thumbnail?id='+id+'&sz=w400';};}
+
+
 /* ===================== PRICE LIST ===================== */
 var dragId=null;
 function moveItemBefore(dragId,targetId){
@@ -56,7 +59,8 @@ function renderCatalog(){
 function itemCard(it){
   var card=document.createElement('div');card.className='item';if(it._open)card.classList.add('open');
   var head=document.createElement('div');head.className='item-head';
-  var thumb=it.photo?'<img class="thumb" src="'+it.photo+'" alt="">':'<div class="thumb">🥖</div>';
+  var _pu=it.photo||(it.photoId?driveThumb(it.photoId):'');
+  var thumb=_pu?'<img class="thumb" src="'+esc(_pu)+'" alt="">':'<div class="thumb">🥖</div>';
   head.innerHTML='<span class="drag-handle" draggable="true" title="Перетащите в другой раздел">⠿</span>'+thumb+'<div class="nm"><b>'+esc(it.name)+'</b><small>'+esc(it.weight||'')+(it.weight?' · ':'')+esc(it.cat||'')+' · PDV '+itemPdv(it)+'%'+visTag(it)+'</small></div>'+
     '<div class="price-tag"><div class="retail">'+fmt(it.retail)+' дин.</div><div class="b2b">от '+fmt(minB2B(it))+' дин.</div></div><div class="chev">▾</div>';
   head.addEventListener('click',function(){it._open=!it._open;card.classList.toggle('open');});
@@ -120,7 +124,8 @@ function itemCard(it){
     '<textarea class="inp f-sostav" placeholder="Мука, вода, закваска, соль... (рус)">'+esc(it.sostav||'')+'</textarea>'+
     '<textarea class="inp f-sostav-sr" placeholder="Brašno, voda, kvasac, so... (срб)">'+esc(it.sostavSr||'')+'</textarea></div>';body.appendChild(sos);
   var pr=document.createElement('div');pr.className='photo-row';
-  var prev=it.photo?'<img class="photo-prev" src="'+it.photo+'" alt="">':'<div class="photo-prev">нет фото</div>';
+  var _pp=it.photo||(it.photoId?driveThumb(it.photoId):'');
+  var prev=_pp?'<img class="photo-prev" src="'+esc(_pp)+'" alt="">':'<div class="photo-prev">нет фото</div>';
   pr.innerHTML=prev+'<div class="photo-ctrl"><label class="lbl">Фото продукта</label>'+
     '<button class="btn btn-ghost btn-sm f-photo-btn">Загрузить фото</button>'+
     (it.photo?'<button class="btn btn-line btn-sm f-photo-del">Удалить фото</button>':'')+

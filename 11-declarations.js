@@ -99,7 +99,29 @@ function renderDeclArchive(){
 }
 function declKey(name,weight){return String(name||'')+'|'+String(weight||'');}
 function declGet(name,weight){
-  return declProducts[declKey(name,weight)]||null;
+  var exact=declProducts[declKey(name,weight)];
+  if(exact)return exact;
+  // запасное совпадение по названию — только если товар с таким названием ОДИН
+  // (иначе, напр. Francuski tartin 650 и 1000 г, можно перепутать декларации)
+  var cnt=0;catalog.forEach(function(it){if(it.name===name)cnt++;});
+  if(cnt<=1){
+    var pref=String(name||'')+'|';
+    for(var kk in declProducts){
+      if(kk.indexOf(pref)===0){var d=declProducts[kk];
+        if(d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length)||d.storeRu||d.shelfRu||(d.nutr&&Object.keys(d.nutr).length)))return d;}
+    }
+  }
+  return null;
+}
+// Переносит осиротевшие записи (старый вес) на актуальные ключи каталога
+function declMigrate(){
+  if(!Array.isArray(catalog))return;
+  catalog.forEach(function(it){
+    var k=declKey(it.name,it.weight);
+    if(declProducts[k])return;
+    var found=declGet(it.name,it.weight);
+    if(found)declProducts[k]=JSON.parse(JSON.stringify(found));
+  });
 }
 /* Объединяет данные товара каталога + справочник деклараций в готовую запись */
 function declResolve(name,weight){
@@ -122,9 +144,10 @@ function declResolve(name,weight){
 function renderDeclRef(){
   var w=document.getElementById('declRef');if(!w)return;
   if(!catalog.length){w.innerHTML='<div class="hint">Сначала добавьте товары в прайс-лист.</div>';return;}
+  declMigrate();
   var h='';
   catalog.forEach(function(it){
-    var k=declKey(it.name,it.weight),d=declProducts[k]||{};
+    var k=declKey(it.name,it.weight),d=declGet(it.name,it.weight)||{};
     var alg=Array.isArray(d.alg)?d.alg:[];
     var algBoxes=DECL_ALLERGENS.map(function(a){
       return '<label class="chk'+(alg.indexOf(a[0])>=0?' on':'')+'" style="font-size:12.5px;padding:6px 10px;">'+
@@ -138,7 +161,7 @@ function renderDeclRef(){
     }).join('');
     h+='<details class="card" style="margin-top:10px;padding:14px 16px;">'+
       '<summary style="cursor:pointer;font-weight:700;font-size:15px;list-style:none;">'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+
-        (declRefFilled(k)?' <span style="color:var(--blue);font-size:12px;">● заполнено</span>':' <span class="hint" style="font-size:12px;">— не заполнено</span>')+'</summary>'+
+        (declRefFilled(it.name,it.weight)?' <span style="color:var(--blue);font-size:12px;">● заполнено</span>':' <span class="hint" style="font-size:12px;">— не заполнено</span>')+'</summary>'+
       '<div style="margin-top:12px;">'+
         '<div style="display:flex;gap:10px;flex-wrap:wrap;">'+
           '<div class="field" style="flex:1;min-width:220px;margin:0;"><label class="lbl">Состав (RU)</label><textarea class="inp decl-f" data-k="'+esc(k)+'" data-f="sastavRu" rows="2" style="resize:vertical;">'+esc(d.sastavRu||it.sostav||'')+'</textarea></div>'+
@@ -171,7 +194,7 @@ function renderDeclRef(){
     if(this.checked){if(rec.alg.indexOf(a)<0)rec.alg.push(a);}else rec.alg=rec.alg.filter(function(x){return x!==a;});
     this.closest('.chk').classList.toggle('on',this.checked);});});
 }
-function declRefFilled(k){var d=declProducts[k];return d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length));}
+function declRefFilled(name,weight){var d=declGet(name,weight);return !!(d&&(d.sastavRu||d.sastavSr||(d.alg&&d.alg.length)));}
 function ensureDeclRec(k){if(!declProducts[k])declProducts[k]={alg:[],nutr:{}};return declProducts[k];}
 
 /* ---------- ручной выбор продуктов ---------- */
@@ -393,7 +416,8 @@ function updateLblTotal(){
 function renderLabelBuilder(){
   var w=document.getElementById('lblBuilder');if(!w)return;
   if(!catalog.length){w.innerHTML='<div class="hint">Нет товаров в прайс-листе.</div>';return;}
-  w.innerHTML=catalog.map(function(it){var k=declKey(it.name,it.weight);var filled=declRefFilled(k);
+  declMigrate();
+  w.innerHTML=catalog.map(function(it){var k=declKey(it.name,it.weight);var filled=declRefFilled(it.name,it.weight);
     return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'+
       '<span style="flex:1;min-width:200px;">'+esc(it.name)+(it.weight?' · '+esc(it.weight):'')+(filled?'':' <span class="hint" style="color:#c0392b;">(нет данных)</span>')+'</span>'+
       '<input type="number" class="inp lbl-qty" min="0" max="200" value="0" data-name="'+esc(it.name)+'" data-weight="'+esc(it.weight||'')+'" style="width:80px;font-size:13px;padding:6px 9px;text-align:center;">'+
