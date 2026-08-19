@@ -150,9 +150,21 @@ function applyCloudData(data){
   if(data.declProducts&&typeof data.declProducts==='object')declProducts=data.declProducts;
   if(Array.isArray(data.declArchive))declArchive=data.declArchive;
   if(data.catalog&&data.catalog.length){
-    var photoByKey={};catalog.forEach(function(it){photoByKey[it.name+'|'+it.weight]=it.photo;});
+    // фото храним локально; при загрузке из облака возвращаем их на товары.
+    // Привязка ПО id (устойчива к смене веса/названия), с запасом по «название|вес».
+    var photoByKey={},photoById={},photoIdById={};
+    catalog.forEach(function(it){
+      if(it.photo){photoByKey[it.name+'|'+it.weight]=it.photo;if(it.id)photoById[it.id]=it.photo;}
+      if(it.photoId&&it.id)photoIdById[it.id]=it.photoId;
+    });
+    // добавим и то, что лежало в localStorage (могло не попасть в память)
+    try{var _ls=JSON.parse(localStorage.getItem(K_CAT)||'[]');_ls.forEach(function(it){
+      if(it.photo){if(it.id&&!photoById[it.id])photoById[it.id]=it.photo;if(!photoByKey[it.name+'|'+it.weight])photoByKey[it.name+'|'+it.weight]=it.photo;}
+      if(it.photoId&&it.id&&!photoIdById[it.id])photoIdById[it.id]=it.photoId;
+    });}catch(e){}
     catalog=data.catalog.map(function(it){var c=JSON.parse(JSON.stringify(it));if(!c.id)c.id=uid();
-      var ph=photoByKey[c.name+'|'+c.weight];if(ph)c.photo=ph;
+      var ph=(c.id&&photoById[c.id])||photoByKey[c.name+'|'+c.weight];if(ph)c.photo=ph;
+      if(!c.photoId&&c.id&&photoIdById[c.id])c.photoId=photoIdById[c.id];
       if(!c.tiers)c.tiers=[];if(c.desc==null)c.desc='';if(c.sostav==null)c.sostav='';
       if(c.descSr==null)c.descSr='';if(c.sostavSr==null)c.sostavSr='';if(c.photo==null)c.photo='';
       if(c.pdv==null)c.pdv=10;if(c.uom==null)c.uom='шт';return c;});
