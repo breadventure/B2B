@@ -584,10 +584,16 @@ function initDeclTab(){
         var pp=pts.filter(function(x){return x.partner_id===pid&&x.active!==false&&x.address;});
         if(pp.length)full=pp[0].address;
       }
-      if(full)adr.value=full;
+      if(full&&!(adr.value||'').trim())adr.value=full;
     };
     rec.addEventListener('change',fillAddr);
     rec.addEventListener('blur',fillAddr);
+    // если получатель уже вписан (с прошлого раза) — подставить адрес сам,
+    // повторяя попытки, пока подгрузятся данные партнёров/точек
+    if((rec.value||'').trim()&&!(adr.value||'').trim()){
+      var _tries=0,_t=setInterval(function(){_tries++;fillAddr();
+        if((adr.value||'').trim()||_tries>=10)clearInterval(_t);},500);
+    }
   }
   var di=document.getElementById('declDate');if(di&&!di.value)di.valueAsDate=new Date();
   var lo=document.getElementById('declLot');if(lo&&!lo.value)lo.value=declLotFromDate(di?di.value:'');
