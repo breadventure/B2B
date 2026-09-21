@@ -579,6 +579,11 @@ function initDeclTab(){
       if(!pid)return;
       var pr=profs[pid]||{},pt=parties[pid]||{};
       var full=[pr.address||pt.address||'',pr.city||pt.city||''].filter(Boolean).join(', ');
+      if(!full){ // берём первый адрес доставки партнёра
+        var pts=(typeof pointsAdmin!=='undefined'&&Array.isArray(pointsAdmin))?pointsAdmin:[];
+        var pp=pts.filter(function(x){return x.partner_id===pid&&x.active!==false&&x.address;});
+        if(pp.length)full=pp[0].address;
+      }
       if(full)adr.value=full;
     };
     rec.addEventListener('change',fillAddr);
