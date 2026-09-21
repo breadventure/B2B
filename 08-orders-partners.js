@@ -133,6 +133,10 @@ function partnerDetailsHtml(p){
       fld('Matični broj','maticni',pr.maticni)+
       fld('Номер счёта','account',pr.account)+
     '</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">'+
+      fld('Адрес компании','address',pr.address,'ул., дом')+
+      fld('Город','city',pr.city,'11000 Beograd')+
+    '</div>'+
     '<div class="actions" style="margin-top:10px;align-items:center;gap:10px;">'+
       '<button class="btn btn-primary btn-sm pf-save">💾 Сохранить данные</button>'+
       (pr.updated?'<span class="hint">Обновлено: '+esc((function(){try{return new Date(pr.updated).toLocaleString('ru-RU');}catch(e){return '';}})())+'</span>':'')+
@@ -153,7 +157,7 @@ function partnerDetailsHtml(p){
 }
 function savePartnerProfile(pid,row){
   var g=function(k){var el=row.querySelector('.pf-'+k);return el?el.value.trim():'';};
-  profilesAdmin[pid]={company:g('company'),contact:g('contact'),phone:g('phone'),pib:g('pib'),maticni:g('maticni'),account:g('account'),updated:new Date().toISOString()};
+  profilesAdmin[pid]={company:g('company'),contact:g('contact'),phone:g('phone'),pib:g('pib'),maticni:g('maticni'),account:g('account'),address:g('address'),city:g('city'),updated:new Date().toISOString()};
   cloudPut('profiles',profilesAdmin);
   toast('Данные партнёра сохранены');renderPartners();
 }

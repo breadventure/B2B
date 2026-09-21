@@ -563,6 +563,27 @@ function initDeclTab(){
   renderDeclPick();
   declCloudReload(function(){renderDeclRef();renderLabelBuilder();renderDeclArchive();});
   initLabelUi();
+  // автоподстановка адреса доставки по выбранному получателю (из реквизитов партнёра или документов)
+  var rec=document.getElementById('declRecipient'),adr=document.getElementById('declAddr');
+  if(rec&&adr&&!rec._addrb){rec._addrb=1;
+    var fillAddr=function(){
+      var v=(rec.value||'').trim().toLowerCase();if(!v)return;
+      var profs=(typeof profilesAdmin==='object'&&profilesAdmin)||{};
+      var parties=(typeof docConfig==='object'&&docConfig&&docConfig.parties)||{};
+      var plist=(typeof partners!=='undefined'&&Array.isArray(partners))?partners:[];
+      var pid=null;
+      // ищем партнёра по названию компании / имени / названию в реквизитах
+      for(var k in profs){if(((profs[k].company||'').trim().toLowerCase())===v){pid=k;break;}}
+      if(!pid)plist.forEach(function(p){if((p.name||'').trim().toLowerCase()===v)pid=p.id;});
+      if(!pid)for(var k2 in parties){if(((parties[k2].name||'').trim().toLowerCase())===v){pid=k2;break;}}
+      if(!pid)return;
+      var pr=profs[pid]||{},pt=parties[pid]||{};
+      var full=[pr.address||pt.address||'',pr.city||pt.city||''].filter(Boolean).join(', ');
+      if(full)adr.value=full;
+    };
+    rec.addEventListener('change',fillAddr);
+    rec.addEventListener('blur',fillAddr);
+  }
   var di=document.getElementById('declDate');if(di&&!di.value)di.valueAsDate=new Date();
   var lo=document.getElementById('declLot');if(lo&&!lo.value)lo.value=declLotFromDate(di?di.value:'');
   var nu=document.getElementById('declNum');if(nu&&!nu.value)nu.value=declNextNum();
