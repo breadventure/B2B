@@ -66,16 +66,16 @@ function buildStats(opts){
     if(until&&(isNaN(d.getTime())||d>until))return false;
     return true;
   });
-  var total=0,paidCnt=0,nedospeliCnt=0,dospeliCnt=0,totalSum=0,byPartner={},debtByPartner={};
+  var total=0,paidCnt=0,nedospeliCnt=0,dospeliCnt=0,totalSum=0,paidSum=0,nedospeliSum=0,dospeliSum=0,byPartner={},debtByPartner={};
   var byProduct={},byCategory={},byMonth={};
   orders.forEach(function(o){
     var sum=Number(o.total)||0;totalSum+=sum;total++;
     var pname=o.partner||'—';byPartner[pname]=(byPartner[pname]||0)+sum;
-    if(o.paid)paidCnt++;
+    if(o.paid){paidCnt++;paidSum+=sum;}
     else{
       var due=normDate(o.dueDate);
       var overdue=due&&(new Date(due+'T00:00:00')<today);
-      if(overdue)dospeliCnt++;else nedospeliCnt++;
+      if(overdue){dospeliCnt++;dospeliSum+=sum;}else{nedospeliCnt++;nedospeliSum+=sum;}
       debtByPartner[pname]=(debtByPartner[pname]||0)+sum;
     }
     (o.items||[]).forEach(function(it){
@@ -98,6 +98,7 @@ function buildStats(opts){
   var cats=Object.keys(byCategory).map(function(k){return {name:k,qty:byCategory[k].qty,sum:byCategory[k].sum};}).sort(function(a,b){return b.sum-a.sum;});
   var months=Object.keys(byMonth).sort().map(function(k){return {m:k,sum:byMonth[k]};});
   return {total:total,paidCnt:paidCnt,nedospeliCnt:nedospeliCnt,dospeliCnt:dospeliCnt,totalSum:totalSum,
+          paidSum:paidSum,nedospeliSum:nedospeliSum,dospeliSum:dospeliSum,debtSum:(nedospeliSum+dospeliSum),avg:(total?totalSum/total:0),
           best:best,debt:debt,prodByQty:prodByQty,prodBySum:prodBySum,cats:cats,months:months};
 }
 function statsDonut(segs,size){
@@ -155,46 +156,125 @@ function statsProdRow(rank,name,metricTxt,subTxt,frac,color){
 }
 function renderStats(){
   var w=document.getElementById('statsView');if(!w)return;
-  if(!adminOrders.length){w.innerHTML='<div class="empty">Нажмите «Обновить», чтобы загрузить данные.</div>';return;}
+  if(!adminOrders.length){w.innerHTML='<div class="empty">Загружаю данные…</div>';loadAdminOrders().then(function(){renderStats();});return;}
   var s=buildStats(statsCurrentOpts());
   if(!s.total){w.innerHTML='<div class="empty">За выбранный период счетов нет.</div>';return;}
-  var segs=[{value:s.paidCnt,color:'#3a8a3a'},{value:s.nedospeliCnt,color:'#5bb6a8'},{value:s.dospeliCnt,color:'#d9706e'}];
-  var leg=function(color,n,label){return '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;"><span style="width:11px;height:11px;border-radius:50%;background:'+color+';flex:none;"></span><b style="font-size:18px;">'+n+'</b> <span class="hint">'+label+'</span></div>';};
-  var donutBlock='<div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center;">'+
-    '<div style="position:relative;width:200px;height:200px;flex:none;">'+statsDonut(segs,200)+
-      '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;"><b style="font-size:26px;">'+s.total+'</b><span class="hint">счетов</span></div></div>'+
-    '<div style="flex:1;min-width:220px;">'+
-      leg('#3a8a3a',s.paidCnt,'Оплачено')+
-      leg('#5bb6a8',s.nedospeliCnt,'Не оплачено, срок не наступил')+
-      leg('#d9706e',s.dospeliCnt,'Просрочено')+
-      '<div style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px;font-size:15px;">Сумма выданных счетов: <b>'+fmt(s.totalSum)+' дин.</b></div></div>'+
+  var INK='#1D1D1B',M='rgba(29,29,27,.52)',F='rgba(29,29,27,.34)',H='rgba(29,29,27,.10)';
+  var BLUE='#3E8FC4',GREEN='#4E8C63',SLATE='#7FA9A3',RED='#BE5E5B',GOLD='#B58B42';
+  var TAB='font-variant-numeric:tabular-nums;';
+  var CREAM='var(--cream)';
+  function cur(){return '<span style="font-size:.6em;font-weight:600;color:'+M+';margin-left:2px;">дин.</span>';}
+  function stitle(t,note){return '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:26px 0 12px;">'+
+    '<div style="font-family:\'Instrument Serif\',serif;font-style:italic;font-size:23px;line-height:1;">'+t+'</div>'+
+    (note?'<div style="font-size:12px;color:'+F+';">'+note+'</div>':'')+'</div>';}
+  function row(idx,name,pct,color,mainTxt,subTxt){
+    return '<div style="display:grid;grid-template-columns:1fr auto;gap:14px;align-items:baseline;padding:11px 0;'+(idx>0?'border-top:1px solid '+H+';':'')+'">'+
+      '<div style="min-width:0;">'+
+        '<div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px;">'+
+          '<span style="color:'+F+';font-size:12px;font-weight:600;margin-right:9px;">'+(idx+1)+'</span>'+esc(name)+'</div>'+
+        '<div style="height:5px;border-radius:2px;background:'+CREAM+';overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+color+';border-radius:2px;"></div></div>'+
+      '</div>'+
+      '<div style="text-align:right;'+TAB+'"><b style="font-size:14.5px;font-weight:800;letter-spacing:-.01em;">'+mainTxt+'</b>'+
+        (subTxt?'<small style="display:block;font-size:11.5px;color:'+M+';margin-top:2px;">'+subTxt+'</small>':'')+'</div>'+
     '</div>';
-  var maxBest=s.best.length?s.best[0].sum:0;
-  var bestBlock=s.best.length?s.best.map(function(x,i){return statsBar(i+1,x.name,x.sum,maxBest,'#47A2DA');}).join(''):'<div class="hint">Нет данных.</div>';
-  var maxDebt=s.debt.length?s.debt[0].sum:0;
-  var debtBlock=s.debt.length?s.debt.map(function(x,i){return statsBar(i+1,x.name,x.sum,maxDebt,'#d9706e');}).join(''):'<div class="hint">Должников нет — всё оплачено 🎉</div>';
-  // позиции
-  var maxQ=s.prodByQty.length?s.prodByQty[0].qty:0;
-  var qtyBlock=s.prodByQty.length?s.prodByQty.map(function(x,i){return statsProdRow(i+1,x.name,x.qty+' шт',fmt(x.sum)+' дин.',maxQ?x.qty/maxQ:0,'#47A2DA');}).join(''):'<div class="hint">Нет данных.</div>';
-  var maxS=s.prodBySum.length?s.prodBySum[0].sum:0;
-  var sumBlock=s.prodBySum.length?s.prodBySum.map(function(x,i){return statsProdRow(i+1,x.name,fmt(x.sum)+' дин.',x.qty+' шт',maxS?x.sum/maxS:0,'#3a8a3a');}).join(''):'<div class="hint">Нет данных.</div>';
-  // категории
-  var maxC=s.cats.length?s.cats[0].sum:0;
-  var catBlock=s.cats.length?s.cats.map(function(x,i){return statsProdRow(i+1,x.name,fmt(x.sum)+' дин.',x.qty+' шт',maxC?x.sum/maxC:0,'#c79a4b');}).join(''):'<div class="hint">Нет данных.</div>';
+  }
 
-  w.innerHTML=donutBlock+
-    '<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:26px;">'+
-      '<div style="flex:1;min-width:300px;"><div class="cat-title" style="margin-top:0;">Лучшие покупатели</div>'+bestBlock+'</div>'+
-      '<div style="flex:1;min-width:300px;"><div class="cat-title" style="margin-top:0;">Крупнейшие должники</div>'+debtBlock+'</div>'+
-    '</div>'+
-    '<div class="cat-title">Заработок по месяцам</div>'+
-    '<div style="overflow-x:auto;padding:4px 0;">'+statsMonthsChart(s.months)+'</div>'+
-    '<div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:20px;">'+
-      '<div style="flex:1;min-width:340px;"><div class="cat-title" style="margin-top:0;">Самые продаваемые позиции — по количеству</div>'+qtyBlock+'</div>'+
-      '<div style="flex:1;min-width:340px;"><div class="cat-title" style="margin-top:0;">Самые прибыльные позиции — по заработку</div>'+sumBlock+'</div>'+
-    '</div>'+
-    '<div class="cat-title">Категории товаров — по заработку</div>'+catBlock;
+  // ── KPI ──
+  function kpiCell(label,val,sub,valColor,subColor,last){
+    return '<div style="padding:18px 20px;'+(last?'':'border-right:1px solid '+H+';')+'">'+
+      '<div style="font-size:12px;color:'+M+';margin-bottom:9px;">'+label+'</div>'+
+      '<div style="font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1;'+TAB+(valColor?'color:'+valColor+';':'')+'">'+val+cur()+'</div>'+
+      (sub?'<div style="font-size:12px;margin-top:7px;'+TAB+'color:'+(subColor||M)+';">'+sub+'</div>':'')+'</div>';
+  }
+  var overdueSub=s.dospeliCnt>0
+    ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+RED+';margin-right:6px;vertical-align:middle;"></span>просрочено: '+s.dospeliCnt+' · '+fmt(s.dospeliSum)+' дин.'
+    : 'все счета в срок';
+  var kpi='<div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid '+H+';border-radius:12px;overflow:hidden;">'+
+    kpiCell('Выставлено за период',fmt(s.totalSum),s.total+' счетов',INK,M,false)+
+    kpiCell('К оплате сейчас',fmt(s.debtSum),overdueSub,(s.dospeliCnt>0?RED:INK),(s.dospeliCnt>0?RED:M),false)+
+    kpiCell('Оплачено',fmt(s.paidSum),s.paidCnt+' счетов',GREEN,M,false)+
+    kpiCell('Средний счёт',fmt(Math.round(s.avg)),'по '+s.total+' счетам',INK,M,true)+
+  '</div>';
+
+  // ── donut + ledger ──
+  var segs=[{v:s.paidCnt,c:GREEN},{v:s.nedospeliCnt,c:SLATE},{v:s.dospeliCnt,c:RED}];
+  var donutSvg=statsDonutThin(segs,172,13);
+  var donut='<div style="position:relative;width:172px;height:172px;flex:none;">'+donutSvg+
+    '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">'+
+      '<b style="font-size:34px;font-weight:800;line-height:1;letter-spacing:-.02em;'+TAB+'">'+s.total+'</b>'+
+      '<span style="font-size:11.5px;color:'+M+';margin-top:3px;">счетов</span></div></div>';
+  function lrow(color,label,cnt,sum){return '<div style="display:grid;grid-template-columns:12px 1fr auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid '+H+';">'+
+    '<span style="width:9px;height:9px;border-radius:2px;background:'+color+';"></span>'+
+    '<span style="font-size:13.5px;">'+label+'</span>'+
+    '<span style="font-size:13px;color:'+M+';text-align:right;width:30px;'+TAB+'">'+cnt+'</span>'+
+    '<span style="font-size:14px;font-weight:700;text-align:right;min-width:104px;'+TAB+'">'+fmt(sum)+'</span></div>';}
+  var ledger='<div style="flex:1;min-width:260px;">'+
+    '<div style="font-family:\'Instrument Serif\',serif;font-style:italic;font-size:22px;margin-bottom:6px;">Состояние оплат</div>'+
+    lrow(GREEN,'Оплачено',s.paidCnt,s.paidSum)+
+    lrow(SLATE,'Ждут оплаты — срок не наступил',s.nedospeliCnt,s.nedospeliSum)+
+    lrow(RED,'Просрочено',s.dospeliCnt,s.dospeliSum)+
+    '<div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;padding:13px 0 0;margin-top:4px;border-top:1.5px solid '+INK+';">'+
+      '<span style="font-size:13px;color:'+M+';">Итого к оплате</span>'+
+      '<span style="font-size:19px;font-weight:800;letter-spacing:-.02em;'+TAB+'">'+fmt(s.debtSum)+cur()+'</span></div>';
+  ledger+='</div>';
+  var donutBlock='<div style="display:flex;flex-wrap:wrap;gap:30px;align-items:center;margin-top:20px;">'+donut+ledger+'</div>';
+
+  // ── buyers + debtors ──
+  var mB=s.best.length?s.best[0].sum:0;
+  var buyers=s.best.length?s.best.map(function(x,i){return row(i,x.name,mB?Math.max(3,Math.round(x.sum/mB*100)):0,BLUE,fmt(x.sum)+' дин.','');}).join(''):'<div class="hint">Нет данных.</div>';
+  var mD=s.debt.length?s.debt[0].sum:0;
+  var debtors=s.debt.length?s.debt.map(function(x,i){return row(i,x.name,mD?Math.max(3,Math.round(x.sum/mD*100)):0,RED,fmt(x.sum)+' дин.','');}).join(''):'<div class="hint" style="padding-top:10px;">Должников нет — всё оплачено.</div>';
+  var bd='<div style="display:flex;flex-wrap:wrap;gap:30px;">'+
+    '<div style="flex:1;min-width:280px;">'+stitle('Лучшие покупатели','по выставленным счетам')+buyers+'</div>'+
+    '<div style="flex:1;min-width:280px;">'+stitle('Крупнейшие должники','не оплачено сейчас')+debtors+'</div>'+
+  '</div>';
+
+  // ── months ──
+  var months='';
+  if(s.months.length){
+    var mx=Math.max.apply(null,s.months.map(function(m){return m.sum;}))||1;
+    var bars=s.months.map(function(m){var h=Math.max(4,Math.round(m.sum/mx*150));
+      return '<div style="flex:1;max-width:66px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;">'+
+        '<div style="font-size:12px;font-weight:700;'+TAB+'">'+fmt(m.sum)+'</div>'+
+        '<div style="width:100%;max-width:52px;height:'+h+'px;background:'+BLUE+';border-radius:3px 3px 0 0;"></div>'+
+        '<div style="font-size:11.5px;color:'+M+';">'+statsMonthLabel(m.m)+'</div></div>';}).join('');
+    var note=s.months.length<3?'<div style="margin-top:14px;font-size:12.5px;color:'+M+';border-left:2px solid '+H+';padding-left:12px;">Пока данных немного — график заполнится по мере работы.</div>':'';
+    months=stitle('Заработок по месяцам','сумма выставленных счетов')+
+      '<div style="overflow-x:auto;"><div style="display:flex;align-items:flex-end;gap:18px;min-height:180px;padding-top:6px;justify-content:flex-start;">'+bars+'</div></div>'+note;
+  }
+
+  // ── products ──
+  var mQ=s.prodByQty.length?s.prodByQty[0].qty:0;
+  var byQty=s.prodByQty.length?s.prodByQty.map(function(x,i){return row(i,x.name,mQ?Math.max(3,Math.round(x.qty/mQ*100)):0,BLUE,x.qty+' шт',fmt(x.sum)+' дин.');}).join(''):'<div class="hint">Нет данных.</div>';
+  var mS=s.prodBySum.length?s.prodBySum[0].sum:0;
+  var bySum=s.prodBySum.length?s.prodBySum.map(function(x,i){return row(i,x.name,mS?Math.max(3,Math.round(x.sum/mS*100)):0,GREEN,fmt(x.sum)+' дин.',x.qty+' шт');}).join(''):'<div class="hint">Нет данных.</div>';
+  var prod='<div style="display:flex;flex-wrap:wrap;gap:30px;">'+
+    '<div style="flex:1;min-width:300px;">'+stitle('Самые продаваемые','по количеству')+byQty+'</div>'+
+    '<div style="flex:1;min-width:300px;">'+stitle('Самые прибыльные','по заработку')+bySum+'</div>'+
+  '</div>';
+
+  // ── categories ──
+  var mC=s.cats.length?s.cats[0].sum:0;
+  var catsH=s.cats.length?s.cats.map(function(x,i){return row(i,x.name,mC?Math.max(3,Math.round(x.sum/mC*100)):0,GOLD,fmt(x.sum)+' дин.',x.qty+' шт');}).join(''):'<div class="hint">Нет данных.</div>';
+  var cats=stitle('Категории — по заработку','')+catsH;
+
+  w.innerHTML=kpi+donutBlock+
+    '<div style="height:1px;background:'+H+';margin:26px 0 0;"></div>'+bd+
+    '<div style="height:1px;background:'+H+';margin:26px 0 0;"></div>'+months+
+    '<div style="height:1px;background:'+H+';margin:26px 0 0;"></div>'+prod+
+    '<div style="height:1px;background:'+H+';margin:26px 0 0;"></div>'+cats;
 }
+function statsDonutThin(segs,size,sw){
+  var totalV=segs.reduce(function(a,x){return a+x.v;},0)||1;
+  var r=size/2-sw/2-2,cx=size/2,cy=size/2,circ=2*Math.PI*r,off=0,parts='';
+  parts+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--cream)" stroke-width="'+sw+'"/>';
+  segs.forEach(function(sg){ if(sg.v<=0)return;
+    var len=sg.v/totalV*circ;
+    parts+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+sg.c+'" stroke-width="'+sw+'" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 '+cx+' '+cy+')"/>';
+    off+=len; });
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+parts+'</svg>';
+}
+
 function statsExportPdf(){
   var view=document.getElementById('statsView');if(!view||!view.innerHTML.trim())return;
   if(!window.html2canvas||!window.jspdf){alert('Библиотеки PDF не загрузились, обновите страницу.');return;}
