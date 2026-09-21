@@ -118,9 +118,12 @@ function setSync(state,note){
 }
 function cloudGet(){
   if(!GAS_URL)return Promise.reject('no-url');
+  var ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  var to=ctrl?setTimeout(function(){try{ctrl.abort();}catch(e){}},22000):null;
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify({pull:true,master:MASTER})}).then(function(r){return r.json();})
-    .then(function(j){if(j&&j.ok)return j.data||{};throw (j&&j.error)||'bad';});
+    body:JSON.stringify({pull:true,master:MASTER}),signal:ctrl?ctrl.signal:undefined}).then(function(r){return r.json();})
+    .then(function(j){if(to)clearTimeout(to);if(j&&j.ok)return j.data||{};throw (j&&j.error)||'bad';})
+    .catch(function(e){if(to)clearTimeout(to);throw e;});
 }
 function cloudPut(key,value){
   if(!GAS_URL||cloudState==='off')return Promise.resolve();
@@ -218,9 +221,20 @@ function loadAll(){
   loadLocal();
   if(!GAS_URL){setSync('off');return Promise.resolve();}
   setSync('off','Подключение к облаку…');
-  return cloudGet().then(function(data){
-    applyCloudData(data);cloudState='on';setSync('on');
-  }).catch(function(){cloudState='err';setSync('err','Облако недоступно — работаю локально');});
+  var tries=0,max=4;
+  function attempt(){
+    tries++;
+    return cloudGet().then(function(data){
+      applyCloudData(data);cloudState='on';setSync('on');
+    }).catch(function(e){
+      if(tries<max){
+        setSync('off','Облако просыпается… попытка '+tries+' из '+(max-1));
+        return new Promise(function(res){setTimeout(res,1500*tries);}).then(attempt);
+      }
+      cloudState='err';setSync('err','Облако недоступно — работаю локально (нажмите «Облако…» → повторить)');
+    });
+  }
+  return attempt();
 }
 function saveCat(){try{localStorage.setItem(K_CAT,JSON.stringify(catalog));flash('priceStatus');}catch(e){toast('Память переполнена — уменьшите число фото');}cloudPut('catalog',stripPhotosArr(catalog));}
 function saveTerms(){try{localStorage.setItem(K_TERMS,JSON.stringify(terms));flash('termsStatus');}catch(e){}cloudPut('terms',terms);}
