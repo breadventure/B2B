@@ -298,10 +298,89 @@ function careAddFile(file){
   };
   rd.onerror=function(){toast('Не удалось прочитать файл');};rd.readAsDataURL(file);
 }
+function careInjectStyle(){
+  if(document.getElementById('careEditorStyle'))return;
+  var css=''+
+  '.care-layout{display:grid;grid-template-columns:248px 1fr;gap:18px;align-items:start;}'+
+  '@media(max-width:820px){.care-layout{grid-template-columns:1fr;}}'+
+  '.care-outline{position:sticky;top:12px;background:var(--paper,#FBFAF4);border:1px solid rgba(29,29,27,.08);border-radius:12px;padding:10px;max-height:78vh;overflow:auto;}'+
+  '.care-outline .co-h{font-size:10.5px;font-weight:700;letter-spacing:.06em;color:rgba(29,29,27,.38);padding:4px 8px 8px;}'+
+  '.co-item{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:9px;cursor:pointer;margin-bottom:3px;border:1px solid transparent;user-select:none;}'+
+  '.co-item:hover{background:#fff;}'+
+  '.co-item.on{background:#fff;border-color:rgba(29,29,27,.09);box-shadow:0 1px 2px rgba(29,29,27,.05);}'+
+  '.co-item .co-n{width:16px;font-size:11px;font-weight:700;color:rgba(29,29,27,.34);flex:none;text-align:right;}'+
+  '.co-item .co-ico{width:22px;height:22px;border-radius:6px;background:var(--cream,#F4F3E9);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:rgba(29,29,27,.52);flex:none;}'+
+  '.co-item.on .co-ico{background:rgba(71,162,218,.14);color:#2c7bb0;}'+
+  '.co-item .co-txt{min-width:0;flex:1;}'+
+  '.co-item .co-t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'+
+  '.co-item .co-s{font-size:11px;color:rgba(29,29,27,.38);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'+
+  '.co-item .co-g{color:rgba(29,29,27,.34);opacity:0;cursor:grab;flex:none;font-size:15px;line-height:1;}'+
+  '.co-item:hover .co-g{opacity:1;}'+
+  '.co-item.co-before{box-shadow:inset 0 2px 0 0 var(--blue,#47A2DA);}'+
+  '.co-item.co-after{box-shadow:inset 0 -2px 0 0 var(--blue,#47A2DA);}'+
+  '.co-add{margin-top:8px;padding:6px 4px 2px;display:flex;flex-wrap:wrap;gap:3px;border-top:1px solid rgba(29,29,27,.08);}'+
+  '.co-add span{font-size:11.5px;font-weight:600;color:#2c7bb0;cursor:pointer;padding:4px 7px;border-radius:6px;}'+
+  '.co-add span:hover{background:rgba(71,162,218,.12);}'+
+  '.care-doc{min-width:0;padding-left:14px;}'+
+  '.care-block{position:relative;padding:12px 14px;border-radius:10px;margin:2px 0;transition:background .15s;}'+
+  '.care-block:hover{background:var(--paper,#FBFAF4);}'+
+  '.care-block.flash{background:rgba(71,162,218,.14);}'+
+  '.care-block .care-label{position:absolute;left:12px;top:-8px;font-size:10px;font-weight:700;letter-spacing:.06em;color:rgba(29,29,27,.38);background:#fff;padding:0 6px;border-radius:4px;opacity:0;transition:opacity .15s;pointer-events:none;}'+
+  '.care-block:hover .care-label,.care-block:focus-within .care-label{opacity:1;}'+
+  '.care-block .cb-drag{position:absolute;left:-14px;top:13px;color:rgba(29,29,27,.34);opacity:0;cursor:grab;font-size:16px;line-height:1;user-select:none;}'+
+  '.care-block:hover .cb-drag{opacity:1;}'+
+  '.care-tools{position:absolute;right:10px;top:8px;display:flex;gap:2px;align-items:center;opacity:0;transform:translateY(-4px);transition:opacity .15s,transform .15s;background:#fff;border:1px solid rgba(29,29,27,.09);border-radius:9px;padding:3px;box-shadow:0 1px 2px rgba(29,29,27,.04),0 6px 18px rgba(29,29,27,.07);z-index:3;}'+
+  '.care-block:hover .care-tools,.care-block:focus-within .care-tools{opacity:1;transform:none;}'+
+  '.care-tools .ctb{border:none;background:none;font:inherit;font-size:12.5px;font-weight:600;color:rgba(29,29,27,.52);padding:4px 8px;border-radius:6px;cursor:pointer;line-height:1.2;}'+
+  '.care-tools .ctb:hover{background:var(--cream,#F4F3E9);color:#1D1D1B;}'+
+  '.care-tools .ctb.danger:hover{color:#BE5E5B;}'+
+  '.care-tools .ctb[disabled]{opacity:.3;cursor:default;}'+
+  '.care-tools .cb-moveto{font-size:12px;padding:3px 6px;border:1px solid rgba(29,29,27,.12);border-radius:6px;max-width:150px;background:#fff;font-family:inherit;}'+
+  '.care-block .cb-text{width:100%;border:none!important;background:transparent!important;box-shadow:none!important;font:inherit;font-size:15px;line-height:1.6;resize:none;padding:2px 0!important;outline:none;}'+
+  '.care-block input.cb-text{font-family:"Instrument Serif",serif!important;font-style:italic;font-size:24px!important;line-height:1.15;}'+
+  '.care-block .cb-text::placeholder{color:rgba(29,29,27,.3);}'+
+  '.care-tablewrap{overflow-x:auto;}'+
+  '.care-tedit{width:100%;border-collapse:collapse;font-size:13.5px;}'+
+  '.care-tedit th,.care-tedit td{padding:0;border-bottom:1px solid rgba(29,29,27,.09);vertical-align:top;}'+
+  '.care-tedit tr:first-child th,.care-tedit tr:first-child td{border-bottom:1.5px solid #1D1D1B;}'+
+  '.care-tedit .ct-cell{width:100%;border:none!important;background:transparent!important;box-shadow:none!important;font:inherit;font-size:13.5px;line-height:1.4;resize:none;padding:7px 8px!important;outline:none;min-height:36px;display:block;}'+
+  '.care-tedit tr:first-child .ct-cell{font-weight:700;font-size:12.5px;}'+
+  '.care-tedit .ct-cell:focus{background:rgba(71,162,218,.10)!important;border-radius:4px;}'+
+  '.care-tedit .ct-actions{width:26px;text-align:center;border-bottom:none!important;}'+
+  '.care-tedit .ct-delrow{border:none!important;background:none!important;box-shadow:none!important;color:transparent;cursor:pointer;font-size:12px;font-weight:700;padding:6px 4px!important;}'+
+  '.care-tedit tr:hover .ct-delrow{color:rgba(29,29,27,.34);}'+
+  '.care-tedit tr:hover .ct-delrow:hover{color:#BE5E5B;}'+
+  '.care-tbtns{margin-top:8px;display:flex;gap:12px;opacity:0;transition:opacity .15s;}'+
+  '.care-block:hover .care-tbtns,.care-block:focus-within .care-tbtns{opacity:1;}'+
+  '.care-tbtns .btn{border:none!important;background:none!important;box-shadow:none!important;padding:2px 2px!important;font-size:12.5px;font-weight:600;color:#2c7bb0;}'+
+  '.care-tbtns .btn.danger{color:rgba(29,29,27,.38);}'+
+  '.care-tbtns .btn:hover{text-decoration:underline;}'+
+  '.care-addblk{text-align:center;padding:10px;color:rgba(29,29,27,.34);font-size:13px;border:1px dashed rgba(29,29,27,.12);border-radius:10px;margin-top:12px;}'+
+  '.care-addblk span{color:#2c7bb0;font-weight:600;cursor:pointer;margin:0 7px;}'+
+  '.care-addblk span:hover{text-decoration:underline;}';
+  var st=document.createElement('style');st.id='careEditorStyle';st.textContent=css;document.head.appendChild(st);
+}
+function careOutlineHtml(cur,lang){
+  var ICO={h:'H',table:'▦',note:'!',img:'▣',file:'▤'};
+  var h='<div class="care-outline"><div class="co-h">СТРУКТУРА · ПЕРЕТАЩИ, ЧТОБЫ ПЕРЕСТАВИТЬ</div>';
+  cur.blocks.forEach(function(b,i){
+    var snip='';
+    if(b.type==='table'){var t=(b.t&&b.t[lang])||[];snip=(t[0]||[]).filter(Boolean).join(' · ');}
+    else if(b.type==='img'||b.type==='file'){snip=(b.cap&&(b.cap[lang]||b.cap.ru||b.cap.sr))||(b.ttl&&(b.ttl[lang]||b.ttl.ru||b.ttl.sr))||b.name||'';}
+    else snip=(b.t&&(b.t[lang]||b.t.ru||b.t.sr))||'';
+    snip=String(snip||'').replace(/\s+/g,' ').trim();
+    h+='<div class="co-item" data-i="'+i+'" draggable="true"><span class="co-n">'+(i+1)+'</span><span class="co-ico">'+(ICO[b.type]||'T')+'</span>'+
+       '<div class="co-txt"><div class="co-t">'+careTypeLabel(b.type)+'</div>'+(snip?'<div class="co-s">'+esc(snip.slice(0,64))+'</div>':'')+'</div><span class="co-g">⠿</span></div>';
+  });
+  h+='<div class="co-add"><span data-t="p">+ Текст</span><span data-t="h">+ Заголовок</span><span data-t="table">+ Таблица</span><span data-t="note">+ Заметка</span><span data-t="img">+ Фото</span><span data-t="file">+ Файл</span></div>';
+  h+='</div>';
+  return h;
+}
 function renderCareAdmin(){
   careEnsure();
   careCheckDraft();
   careEnsure();
+  careInjectStyle();
   var lang=storeLang;
   var ed=document.getElementById('careEditor');if(!ed)return;
   var cur=careCurGroup();
@@ -326,28 +405,28 @@ function renderCareAdmin(){
     if(others.length){
       var moveO='',copyO='';
       others.forEach(function(o){moveO+='<option value="move:'+esc(o.id)+'">'+esc(o.name)+'</option>';copyO+='<option value="copy:'+esc(o.id)+'">'+esc(o.name)+'</option>';});
-      moveOpts='<select class="cb-moveto" style="font-size:12px;padding:4px 7px;border:1px solid var(--line);border-radius:8px;margin-right:6px;max-width:180px;">'+
+      moveOpts='<select class="cb-moveto" title="Переместить или скопировать в другой тип">'+
         '<option value="">в другой тип…</option>'+
         '<optgroup label="↦ Переместить (убрать отсюда)">'+moveO+'</optgroup>'+
         '<optgroup label="⧉ Копировать (оставить здесь)">'+copyO+'</optgroup>'+
         '</select>';
     }
   }
-  h+='<div id="careBulk" style="display:none;gap:8px;flex-wrap:wrap;align-items:center;background:#eef5fb;border:1px solid #bcdcf2;border-radius:11px;padding:9px 12px;margin-bottom:12px;">'+
-     '<span style="font-size:13.5px;">Выбрано: <b id="careBulkN">0</b></span>'+
-     '<select id="careBulkTarget" class="inp" style="width:auto;font-size:13px;padding:6px 9px;"></select>'+
-     '<button class="btn btn-line btn-sm" id="careBulkMove">↦ Переместить</button>'+
-     '<button class="btn btn-line btn-sm" id="careBulkCopy">⧉ Копировать</button>'+
-     '<button class="btn btn-line btn-sm danger" id="careBulkDel">Удалить выбранные</button>'+
-     '<button class="btn btn-line btn-sm" id="careBulkClear">Снять выделение</button></div>';
+  // скрытая панель массовых операций — оставлена для совместимости
+  h+='<div id="careBulk" style="display:none;"><span id="careBulkN">0</span><select id="careBulkTarget"></select><button id="careBulkMove"></button><button id="careBulkCopy"></button><button id="careBulkDel"></button><button id="careBulkClear"></button></div>';
+  // ── структура + документ ──
+  h+='<div class="care-layout">';
+  h+=careOutlineHtml(cur,lang);
+  h+='<div class="care-doc">';
   cur.blocks.forEach(function(b,i){
     var first=(i===0),last=(i===cur.blocks.length-1);
-    h+='<div class="care-block" data-i="'+i+'">';
-    h+='<div class="care-bhead"><input type="checkbox" class="cb-sel" data-i="'+i+'" title="Выбрать блок" style="margin-right:8px;width:16px;height:16px;cursor:pointer;"><span class="cb-drag" title="Перетащите, чтобы переместить в любое место" style="cursor:grab;user-select:none;font-size:17px;line-height:1;color:var(--muted);margin-right:9px;">⠿</span><span class="care-btype">'+careTypeLabel(b.type)+'</span><span style="flex:1;"></span>'+
-       moveOpts+
-       '<button class="btn btn-line btn-sm cb-up"'+(first?' disabled style="opacity:.4;"':'')+' title="выше">↑</button>'+
-       '<button class="btn btn-line btn-sm cb-down"'+(last?' disabled style="opacity:.4;"':'')+' title="ниже">↓</button>'+
-       '<button class="btn btn-line btn-sm danger cb-del">Удалить</button></div>';
+    h+='<div class="care-block" data-i="'+i+'" id="careBlk'+i+'">';
+    h+='<span class="cb-drag" title="Перетащите, чтобы переместить">⠿</span>';
+    h+='<span class="care-label">'+careTypeLabel(b.type).toUpperCase()+'</span>';
+    h+='<div class="care-tools">'+moveOpts+
+       '<button class="ctb cb-up"'+(first?' disabled':'')+' title="выше">↑</button>'+
+       '<button class="ctb cb-down"'+(last?' disabled':'')+' title="ниже">↓</button>'+
+       '<button class="ctb danger cb-del" title="удалить блок">✕</button></div>';
     if(b.type==='table')h+=careTableEditorHtml(b,lang);
     else if(b.type==='h')h+='<input class="inp cb-text" value="'+esc((b.t&&b.t[lang])||'')+'" placeholder="Заголовок">';
     else if(b.type==='img')h+=careImgEditorHtml(b,lang);
@@ -356,10 +435,13 @@ function renderCareAdmin(){
     if(b.type==='note')h+=careColorPaletteHtml(b);
     h+='</div>';
   });
-  if(!cur.blocks.length)h+='<div class="hint" style="padding:10px 2px;">В этом типе пока нет блоков — добавьте ниже «+ Текст», «+ Таблица» и т.д.</div>';
+  if(!cur.blocks.length)h+='<div class="hint" style="padding:10px 2px;">В этом типе пока нет блоков — добавьте слева в структуре или ниже.</div>';
+  h+='<div class="care-addblk">Добавить: <span data-t="p">Текст</span><span data-t="h">Заголовок</span><span data-t="table">Таблица</span><span data-t="note">Заметка</span><span data-t="img">Фото</span><span data-t="file">Файл</span></div>';
+  h+='</div></div>';
   ed.innerHTML=h;
   bindCareGroups();
   bindCareEditor();
+  bindCareOutline();
   renderCarePreview();
   if(!careDirty)careSetStatus(storageData.updated?('Сохранено: '+new Date(storageData.updated).toLocaleString('ru-RU')):'Ещё не сохранено');
   if(typeof renderCareVisibility==='function')renderCareVisibility();
@@ -367,6 +449,43 @@ function renderCareAdmin(){
   if(typeof renderCareHist==='function')renderCareHist();
   careMarkDirty();
 }
+function careOutlineSelect(i){
+  document.querySelectorAll('#careEditor .co-item').forEach(function(x){x.classList.toggle('on',Number(x.dataset.i)===i);});
+}
+function bindCareOutline(){
+  var addH=function(t){
+    if(t==='img'){var ii=document.getElementById('careImgInp');if(ii)ii.click();return;}
+    if(t==='file'){var fi=document.getElementById('careFileInp');if(fi)fi.click();return;}
+    careAddBlock(t);
+  };
+  document.querySelectorAll('#careEditor .co-add span,#careEditor .care-addblk span').forEach(function(s){s.addEventListener('click',function(){addH(this.dataset.t);});});
+  var coDrag=null;
+  document.querySelectorAll('#careEditor .co-item').forEach(function(el){
+    var i=Number(el.dataset.i);
+    el.addEventListener('click',function(){
+      careOutlineSelect(i);
+      var blk=document.getElementById('careBlk'+i);if(!blk)return;
+      if(typeof blk.scrollIntoView==='function'){try{blk.scrollIntoView({behavior:'smooth',block:'center'});}catch(_){blk.scrollIntoView();}}
+      document.querySelectorAll('#careEditor .care-block').forEach(function(b){b.classList.remove('flash');});
+      blk.classList.add('flash');setTimeout(function(){blk.classList.remove('flash');},1400);
+    });
+    el.addEventListener('dragstart',function(e){coDrag=i;el.style.opacity='.45';try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(i));}catch(_){}});
+    el.addEventListener('dragend',function(){el.style.opacity='';coDrag=null;document.querySelectorAll('#careEditor .co-item').forEach(function(x){x.classList.remove('co-before','co-after');});});
+    el.addEventListener('dragover',function(e){if(coDrag==null||coDrag===i)return;e.preventDefault();
+      var r=el.getBoundingClientRect();var before=(e.clientY-r.top)<r.height/2;
+      el.classList.toggle('co-before',before);el.classList.toggle('co-after',!before);});
+    el.addEventListener('dragleave',function(){el.classList.remove('co-before','co-after');});
+    el.addEventListener('drop',function(e){if(coDrag==null)return;e.preventDefault();
+      var r=el.getBoundingClientRect();var before=(e.clientY-r.top)<r.height/2;
+      var from=coDrag,to=i;var target=before?to:to+1;if(from<target)target--;
+      coDrag=null;careReorder(from,target);});
+  });
+  // фокус в блоке — подсветить его в структуре
+  document.querySelectorAll('#careEditor .care-block').forEach(function(blk){
+    blk.addEventListener('focusin',function(){careOutlineSelect(Number(blk.dataset.i));});
+  });
+}
+
 function renderCareVisibility(){
   careEnsure();
   var sel=document.getElementById('careVisPartner');if(!sel)return;
