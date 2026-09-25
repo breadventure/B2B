@@ -244,8 +244,24 @@ document.getElementById('addPartner').addEventListener('click',function(){
   savePartners();renderPartners();
   alert('Партнёр добавлен.\n\nКод доступа: '+code+'\n\nЗаполните реквизиты в раскрывшемся блоке «Данные», затем передайте код партнёру.');
 });
-(function(){var ou=document.getElementById('orderUrl');if(ou){try{ou.value=localStorage.getItem('bv_b2b_order_url')||'';}catch(e){}
-  ou.addEventListener('input',function(){try{localStorage.setItem('bv_b2b_order_url',this.value);}catch(e){}});}})();
+// ── ссылка партнёрского кабинета: всегда подставлена, вычисляется из адреса админки ──
+function bvOrderUrlDefault(){
+  try{var p=location.pathname.replace(/index\.html?$/i,'');if(!/\/$/.test(p))p=p.replace(/[^\/]*$/,'');return location.origin+p+'order.html';}catch(e){return '';}
+}
+(function(){var ou=document.getElementById('orderUrl');if(!ou)return;
+  var saved='';try{saved=localStorage.getItem('bv_b2b_order_url')||'';}catch(e){}
+  var def=bvOrderUrlDefault();
+  // если пусто или это старый адрес по умолчанию — подставляем актуальный
+  ou.value=(saved&&saved!==def&&!/svetulja-krasotulja/.test(saved))?saved:def;
+  if(!saved||saved!==ou.value){try{localStorage.setItem('bv_b2b_order_url',ou.value);}catch(e){}}
+  ou.addEventListener('input',function(){try{localStorage.setItem('bv_b2b_order_url',this.value);}catch(e){}});
+  var cp=document.getElementById('orderUrlCopy');if(cp)cp.addEventListener('click',function(){
+    var v=ou.value||def;var done=function(){cp.textContent='Скопировано ✓';setTimeout(function(){cp.textContent='Копировать';},1500);};
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(v).then(done,function(){ou.select();document.execCommand('copy');done();});
+    else{ou.select();try{document.execCommand('copy');}catch(e){}done();}
+  });
+  var rs=document.getElementById('orderUrlReset');if(rs)rs.addEventListener('click',function(){ou.value=def;try{localStorage.setItem('bv_b2b_order_url',def);}catch(e){}});
+})();
 var annDraftId=null;
 function normalizeAnnounce(a){
   if(Array.isArray(a))return a.map(function(x){return {id:x.id||('a'+Math.random().toString(36).slice(2)),ru:x.ru||'',sr:x.sr||'',active:x.active!==false,ts:x.ts||x.updated||Date.now()};});

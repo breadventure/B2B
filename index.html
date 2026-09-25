@@ -3939,8 +3939,12 @@
     </div>
     <div class="card">
       <div class="cat-title" style="margin-top:0;">Ссылка для партнёров</div>
-      <p class="hint" style="margin-bottom:10px;">Дайте партнёрам адрес страницы заказа (файл order.html на вашем хостинге). Они вводят свой код — и видят прайс и оформляют заказ. Заявки на доступ от новых партнёров приходят вам в Telegram и в Таблицу (лист «Заявки на доступ»).</p>
-      <input class="inp" id="orderUrl" placeholder="https://…/order" style="font-size:13px;">
+      <p class="hint" style="margin-bottom:10px;">Адрес кабинета партнёра подставляется автоматически (из адреса этой админки). Они вводят свой код — и видят прайс и оформляют заказ. Заявки на доступ от новых партнёров приходят вам в Telegram и в Таблицу (лист «Заявки на доступ»).</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <input class="inp" id="orderUrl" placeholder="https://…/order.html" style="font-size:13px;flex:1;min-width:260px;">
+        <button class="btn btn-primary btn-sm" id="orderUrlCopy">Копировать</button>
+        <button class="btn btn-line btn-sm" id="orderUrlReset" title="Подставить актуальный адрес кабинета">↺ Актуальная</button>
+      </div>
       <p class="hint" style="margin-top:8px;">Этот адрес нигде не хранит цены — прайс подгружается только после ввода кода.</p>
     </div>
     <div class="card">
