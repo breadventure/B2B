@@ -23,7 +23,7 @@ function getDeliveryFields(){
   if(!date){alert(L('needdate'));return null;}
   var dd=new Date(date+'T00:00:00');
   if(isBlockedDate(dd)){var na=nextAvailable();
-    var why=isSunday(dd)?L('sundayoff'):(isHoliday(dd)?(LANG==='sr'?'Taj dan je neradni.':'Этот день нерабочий.'):L('cutoff'));
+    var why=isSunday(dd)?L('sundayoff'):(isHoliday(dd)?(LANG==='sr'?'Taj dan je neradni.':'Этот день нерабочий.'):cutoffText());
     alert(L('blocked')+' '+why+'\n\n'+L('nearest')+': '+fmtDate(na));
     document.getElementById('fDate').value=ymd(na);return null;}
   var time=document.getElementById('fTime').value;

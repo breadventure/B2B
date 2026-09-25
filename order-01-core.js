@@ -37,6 +37,14 @@ var TL={
     delivHint:'Najranije za 48 sati. Nedeljom se ne isporučuje.'}
 };
 function L(k){return (TL[LANG]&&TL[LANG][k])||TL.ru[k]||k;}
+// динамические тексты правил (числа берутся из настроек облака)
+function ruleDays(n,sr){n=Number(n)||0;if(sr)return n+' '+(n===1?'dan':'dana');var m=n%10,mm=n%100;return n+' '+((m===1&&mm!==11)?'день':((m>=2&&m<=4&&(mm<10||mm>=20))?'дня':'дней'));}
+function cutoffText(){var sr=(LANG==='sr');return sr?('Porudžbina se prima najkasnije '+ruleDays(LEAD_DAYS,true)+' pre isporuke (proizvodni ciklus).'):('Заказ принимается не позднее чем за '+ruleDays(LEAD_DAYS,false)+' до доставки (производственный цикл).');}
+function rulesNote(){var sr=(LANG==='sr'),hrs=(Number(LEAD_DAYS)||0)*24;
+  var dost=(DELIVERY>0)?(sr?('Dostava po Beogradu '+fmt(DELIVERY)+' din. (besplatno od '+fmt(FREE_FROM)+' din. bez PDV)'):('Доставка по Белграду '+fmt(DELIVERY)+' дин. (бесплатно от '+fmt(FREE_FROM)+' дин. без PDV)'))
+                         :(sr?'Dostava po Beogradu je besplatna':'Доставка по Белграду бесплатная');
+  return sr?(dost+', ispod '+fmt(MIN_DELIVERY)+' din. — samo preuzimanje. Porudžbina najkasnije '+hrs+'h pre isporuke, nedeljom se ne isporučuje.')
+           :(dost+', менее '+fmt(MIN_DELIVERY)+' дин. — только самовывоз. Заказ не позднее '+hrs+' ч до поставки, по воскресеньям отгрузки нет.');}
 var ST_SR={submitted:'Nova',confirmed:'Potvrđena',in_production:'U pripremi',packed:'Spakovana',out_for_delivery:'U dostavi',delivered:'Isporučena',cancelled:'Otkazana'};
 function stName(s){return LANG==='sr'?(ST_SR[s]||s):(ST[s]||s);}
 function catName(cat){return (LANG==='sr'&&CATSR[cat])?CATSR[cat]:cat;}

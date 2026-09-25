@@ -10,7 +10,7 @@ function renderNew(){
   var c=document.getElementById('content');
   if(!catalog.length){c.innerHTML=navHtml('new')+'<div class="empty">Прайс пока не заполнен. Свяжитесь с пекарней.</div>';bindNav();document.getElementById('bar').style.display='none';return;}
   var h=navHtml('new');
-  h+='<div class="note">'+(LANG==='sr'?'Izaberite stavke i količinu, navedite datum isporuke — dole će se prikazati ukupan iznos. Cene su sa PDV; popust po količini se računa automatski. Dostava po Beogradu 350 din. (besplatno od 7000 din. bez PDV), ispod 2500 din. — samo preuzimanje. Porudžbina najkasnije 48h pre isporuke, nedeljom se ne isporučuje.':'Выберите позиции и количество, укажите дату доставки — внизу появится итог. Цены с учётом PDV; скидка по объёму считается автоматически. Доставка по Белграду 350 дин. (бесплатно от 7000 дин. без PDV), менее 2500 дин. — только самовывоз. Заказ не позднее 48 ч до поставки, по воскресеньям отгрузки нет.')+'</div>';
+  h+='<div class="note">'+(LANG==='sr'?'Izaberite stavke i količinu, navedite datum isporuke — dole će se prikazati ukupan iznos. Cene su sa PDV; popust po količini se računa automatski. '+rulesNote()+'':'Выберите позиции и количество, укажите дату доставки — внизу появится итог. Цены с учётом PDV; скидка по объёму считается автоматически. '+rulesNote()+'')+'</div>';
   h+=announceBannerHtml();
   h+=holidayBannerHtml();
   if(pendingCount()){h+='<div class="holiday-banner" style="background:#E8F4FC;border-color:#9fcdeb;color:#1a5a85;cursor:pointer;" id="subRemind">🔁 '+(LANG==='sr'?('Imate isporuke koje čekaju potvrdu ('+pendingCount()+'). Otvorite „Redovno".'):('Есть регулярные поставки, ожидающие подтверждения ('+pendingCount()+'). Откройте «Регулярно».'))+'</div>';}
@@ -56,7 +56,7 @@ function renderNew(){
   document.querySelectorAll('.del-deliv').forEach(function(b){b.addEventListener('click',function(){var i=Number(this.dataset.i);if(i>=0&&i<deliveries.length){deliveries.splice(i,1);renderNew();}});});
   var _sr=document.getElementById('subRemind');if(_sr)_sr.addEventListener('click',function(){setView('subs');});
   var na=nextAvailable();document.getElementById('fDate').min=ymd(na);
-  document.getElementById('dateHint').textContent=L('earliest')+': '+fmtDate(na)+'. '+L('cutoff')+' '+L('sundayoff');
+  document.getElementById('dateHint').textContent=L('earliest')+': '+fmtDate(na)+'. '+cutoffText()+' '+L('sundayoff');
   var fp=document.getElementById('fPoint');
   if(fp){fp.addEventListener('change',function(){selPoint=this.value;
     var w=document.getElementById('fAddrWrap');if(w)w.style.display=(this.value==='__new')?'block':'none';
@@ -108,9 +108,9 @@ function renderTotals(){
     var d='';
     var sd=(LANG==='sr');
     if(c.mode==='pickup')d='<div class="deliv ok"><span>🏠</span><div>'+(sd?'Preuzimanje u pekari — dostava se ne naplaćuje.':'Самовывоз из пекарни — доставка не начисляется.')+'</div></div>';
-    else if(c.mode==='need')d='<div class="deliv warn"><span>⚠</span><div>'+(sd?'Iznos bez PDV manji od 2500 din. — dostupno samo preuzimanje. Do plative dostave nedostaje '+fmt(MIN_DELIVERY-c.net)+' din.':'Сумма без PDV меньше 2500 дин. — доступен только самовывоз. До платной доставки не хватает '+fmt(MIN_DELIVERY-c.net)+' дин.')+'</div></div>';
-    else if(c.mode==='free')d='<div class="deliv ok"><span>✓</span><div>'+(sd?'Besplatna dostava po Beogradu (iznos bez PDV od 7000 din.).':'Бесплатная доставка по Белграду (сумма без PDV от 7000 дин.).')+'</div></div>';
-    else d='<div class="deliv pay"><span>🚲</span><div>'+(sd?'Dostava 350 din. Do besplatne nedostaje '+fmt(FREE_FROM-c.net)+' din. (bez PDV).':'Доставка 350 дин. До бесплатной не хватает '+fmt(FREE_FROM-c.net)+' дин. (без PDV).')+'</div></div>';
+    else if(c.mode==='need')d='<div class="deliv warn"><span>⚠</span><div>'+(sd?'Iznos bez PDV manji od '+fmt(MIN_DELIVERY)+' din. — dostupno samo preuzimanje. Do plative dostave nedostaje '+fmt(MIN_DELIVERY-c.net)+' din.':'Сумма без PDV меньше '+fmt(MIN_DELIVERY)+' дин. — доступен только самовывоз. До платной доставки не хватает '+fmt(MIN_DELIVERY-c.net)+' дин.')+'</div></div>';
+    else if(c.mode==='free')d='<div class="deliv ok"><span>✓</span><div>'+(sd?'Besplatna dostava po Beogradu (iznos bez PDV od '+fmt(FREE_FROM)+' din.).':'Бесплатная доставка по Белграду (сумма без PDV от '+fmt(FREE_FROM)+' дин.).')+'</div></div>';
+    else d='<div class="deliv pay"><span>🚲</span><div>'+(sd?'Dostava '+fmt(DELIVERY)+' din. Do besplatne nedostaje '+fmt(FREE_FROM-c.net)+' din. (bez PDV).':'Доставка '+fmt(DELIVERY)+' дин. До бесплатной не хватает '+fmt(FREE_FROM-c.net)+' дин. (без PDV).')+'</div></div>';
     w.innerHTML=lst+t+d;
   }else w.innerHTML='';
   var stagedTotal=0;deliveries.forEach(function(d){stagedTotal+=Number(d.total)||0;});

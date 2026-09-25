@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Wix+Madefor+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="styles.css?v=202609241800">
+<link rel="stylesheet" href="styles.css?v=202609251200">
 </head>
 <body>
 <div id="bvLock" style="position:fixed;inset:0;z-index:99999;background:#F4F3E9;display:flex;align-items:center;justify-content:center;font-family:'Wix Madefor Text',sans-serif;">
@@ -3753,6 +3753,20 @@
 
   <!-- TERMS -->
   <section class="panel" id="panel-terms">
+    <div class="card" id="rulesCard">
+      <div class="cat-title" style="margin-top:0;">Правила заказа и доставки</div>
+      <p class="hint" style="margin-bottom:14px;">Эти числа применяет кабинет партнёра: проверка минимальной суммы, стоимость доставки, порог бесплатной доставки и срок оформления. Меняются здесь — без правки кода. Правки сохраняются автоматически.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;">
+        <label style="display:flex;flex-direction:column;gap:6px;"><span class="hint" style="font-size:12px;">Мин. сумма для доставки (без PDV), дин.</span><input class="inp" type="number" id="ruleMinDeliv" min="0" step="50"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;"><span class="hint" style="font-size:12px;">Стоимость доставки, дин.</span><input class="inp" type="number" id="ruleDeliv" min="0" step="10"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;"><span class="hint" style="font-size:12px;">Бесплатная доставка от (без PDV), дин.</span><input class="inp" type="number" id="ruleFree" min="0" step="100"></label>
+        <label style="display:flex;flex-direction:column;gap:6px;"><span class="hint" style="font-size:12px;">Срок оформления заказа, дней</span><input class="inp" type="number" id="ruleLead" min="0" max="14" step="1"></label>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;">
+        <span class="st" id="rulesStatus">Правки сохраняются автоматически</span>
+        <span class="hint" style="margin-left:auto;font-size:12px;">По воскресеньям отгрузки нет (правило фиксированное). Нерабочие дни задаются во вкладке «Календарь».</span>
+      </div>
+    </div>
     <div class="card">
       <div class="savebar">
         <button class="btn btn-primary btn-sm" id="saveVerTerms">Сохранить версию условий</button>
@@ -4108,17 +4122,17 @@
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="01-core.js?v=202609241800"></script>
-<script src="02-tabs-kp.js?v=202609241800"></script>
-<script src="03-catalog.js?v=202609241800"></script>
-<script src="04-calendar-subs.js?v=202609241800"></script>
-<script src="05-terms-archive.js?v=202609241800"></script>
-<script src="06-documents.js?v=202609241800"></script>
-<script src="07-orders-stats.js?v=202609241800"></script>
-<script src="08-orders-partners.js?v=202609241800"></script>
-<script src="09-partner-docs-care.js?v=202609241800"></script>
-<script src="10-cloud-lock-init.js?v=202609241800"></script>
-<script src="11-declarations.js?v=202609241800"></script>
+<script src="01-core.js?v=202609251200"></script>
+<script src="02-tabs-kp.js?v=202609251200"></script>
+<script src="03-catalog.js?v=202609251200"></script>
+<script src="04-calendar-subs.js?v=202609251200"></script>
+<script src="05-terms-archive.js?v=202609251200"></script>
+<script src="06-documents.js?v=202609251200"></script>
+<script src="07-orders-stats.js?v=202609251200"></script>
+<script src="08-orders-partners.js?v=202609251200"></script>
+<script src="09-partner-docs-care.js?v=202609251200"></script>
+<script src="10-cloud-lock-init.js?v=202609251200"></script>
+<script src="11-declarations.js?v=202609251200"></script>
 
 
 </body>

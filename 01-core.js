@@ -29,7 +29,7 @@ var footData=JSON.parse(JSON.stringify(DEFAULT_FOOT));
 function footNote(lang){return lang==='sr'?(footData.noteSr||footData.noteRu):footData.noteRu;}
 function footOwner(lang){return lang==='sr'?(footData.ownerSr||footData.ownerRu):footData.ownerRu;}
 function footLine(lang){return '<b>'+esc(footData.brand)+'</b> · '+esc(footData.email)+' · '+esc(footData.phone)+' · '+esc(footOwner(lang));}
-var PDV=0.10, FREE_FROM=7000, MIN_DELIVERY=2500, DELIVERY=350, kpLang='ru', termsLang='ru';
+var PDV=0.10, FREE_FROM=7000, MIN_DELIVERY=2500, DELIVERY=350, LEAD_DAYS=2, kpLang='ru', termsLang='ru';
 
 var DEFAULT_TERMS=[
   {id:uid(),titleRu:'Минимальная сумма заказа и доставка',
@@ -133,7 +133,7 @@ function cloudPut(key,value){
 }
 function cloudPutAll(){
   if(!GAS_URL)return Promise.reject('no-url');
-  var payload={catalog:stripPhotosArr(catalog),terms:terms,kpArchive:kpArchive,foot:footData,priceHistory:priceHistory,partners:partners,catNamesSr:catNamesSr,partnerPrefs:partnerPrefs,settings:{free:FREE_FROM,minDeliv:MIN_DELIVERY,deliv:DELIVERY,leadDays:2,holidays:holidays}};
+  var payload={catalog:stripPhotosArr(catalog),terms:terms,kpArchive:kpArchive,foot:footData,priceHistory:priceHistory,partners:partners,catNamesSr:catNamesSr,partnerPrefs:partnerPrefs,settings:{free:FREE_FROM,minDeliv:MIN_DELIVERY,deliv:DELIVERY,leadDays:LEAD_DAYS,holidays:holidays}};
   return fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify({master:MASTER,all:payload})}).then(function(r){return r.json();})
     .then(function(j){if(j&&j.ok)return j;throw (j&&j.error)||'bad';});
@@ -178,7 +178,12 @@ function applyCloudData(data){
   if(Array.isArray(data.partners))partners=data.partners;
   if(data.catNamesSr&&typeof data.catNamesSr==='object')catNamesSr=data.catNamesSr;
   if(data.partnerPrefs&&typeof data.partnerPrefs==='object')partnerPrefs=data.partnerPrefs;
-  if(data.settings&&Array.isArray(data.settings.holidays))holidays=data.settings.holidays;
+  if(data.settings){var _rs=data.settings;
+    if(_rs.free!=null&&isFinite(Number(_rs.free)))FREE_FROM=Number(_rs.free);
+    if(_rs.minDeliv!=null&&isFinite(Number(_rs.minDeliv)))MIN_DELIVERY=Number(_rs.minDeliv);
+    if(_rs.deliv!=null&&isFinite(Number(_rs.deliv)))DELIVERY=Number(_rs.deliv);
+    if(_rs.leadDays!=null&&isFinite(Number(_rs.leadDays)))LEAD_DAYS=Math.max(0,Math.round(Number(_rs.leadDays)));
+    if(Array.isArray(_rs.holidays))holidays=_rs.holidays;}
   if(data.profiles&&typeof data.profiles==='object')profilesAdmin=data.profiles;
   if(Array.isArray(data.points))pointsAdmin=data.points;
   if(data.announce)announceData=normalizeAnnounce(data.announce);
@@ -194,7 +199,7 @@ function applyCloudData(data){
   if(declProductsLegacy&&!Object.keys(declProducts).length)declProducts=declProductsLegacy;
   if(data.foot){for(var fk in DEFAULT_FOOT)if(data.foot[fk]!=null)footData[fk]=data.foot[fk];}
 }
-function rerenderAll(){renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();refreshOfferRefs();if(typeof bvRefreshPartnerHints==='function')bvRefreshPartnerHints();if(typeof renderOrdManual==='function')renderOrdManual();}
+function rerenderAll(){if(typeof renderRules==='function')renderRules();renderCatalog();renderTerms();renderVersions();renderKPArchive();renderFoot();renderPartners();refreshOfferRefs();if(typeof bvRefreshPartnerHints==='function')bvRefreshPartnerHints();if(typeof renderOrdManual==='function')renderOrdManual();}
 
 function loadLocal(){
   try{var c=localStorage.getItem(K_CAT);if(c)catalog=JSON.parse(c);}catch(e){}
@@ -209,6 +214,7 @@ function loadLocal(){
   if(!Array.isArray(kpArchive))kpArchive=[];
   try{var f=localStorage.getItem(K_FOOT);if(f){var fd=JSON.parse(f);for(var kk in DEFAULT_FOOT)if(fd[kk]!=null)footData[kk]=fd[kk];}}catch(e){}
   try{var prt=localStorage.getItem('bv_b2b_partners');if(prt)partners=JSON.parse(prt);}catch(e){}
+  try{var _rl=JSON.parse(localStorage.getItem('bv_b2b_rules')||'null');if(_rl){if(isFinite(Number(_rl.free)))FREE_FROM=Number(_rl.free);if(isFinite(Number(_rl.minDeliv)))MIN_DELIVERY=Number(_rl.minDeliv);if(isFinite(Number(_rl.deliv)))DELIVERY=Number(_rl.deliv);if(isFinite(Number(_rl.leadDays)))LEAD_DAYS=Math.max(0,Math.round(Number(_rl.leadDays)));}}catch(e){}
   if(!Array.isArray(partners))partners=[];
   try{var cs=localStorage.getItem('bv_b2b_catsr');if(cs)catNamesSr=JSON.parse(cs);}catch(e){}
   if(!catNamesSr||typeof catNamesSr!=='object')catNamesSr={};
@@ -244,7 +250,34 @@ function saveFoot(){try{localStorage.setItem(K_FOOT,JSON.stringify(footData));fl
 function savePartners(){try{localStorage.setItem('bv_b2b_partners',JSON.stringify(partners));}catch(e){}cloudPut('partners',partners);}
 function saveCatSr(){try{localStorage.setItem('bv_b2b_catsr',JSON.stringify(catNamesSr));}catch(e){}cloudPut('catNamesSr',catNamesSr);}
 function savePartnerPrefs(){try{localStorage.setItem('bv_b2b_pprefs',JSON.stringify(partnerPrefs));}catch(e){}cloudPut('partnerPrefs',partnerPrefs);}
-function saveHolidays(){try{localStorage.setItem('bv_b2b_holidays',JSON.stringify(holidays));}catch(e){}cloudPut('settings',{free:FREE_FROM,minDeliv:MIN_DELIVERY,deliv:DELIVERY,leadDays:2,holidays:holidays});}
+// ── правила заказа и доставки (редактируются в ЛК, применяет кабинет партнёра) ──
+function rulesNum(v,def){var n=Number(v);return (v===''||v==null||!isFinite(n))?def:n;}
+var _rulesT=null;
+function renderRules(){
+  var a=document.getElementById('ruleMinDeliv'),b=document.getElementById('ruleDeliv'),c=document.getElementById('ruleFree'),d=document.getElementById('ruleLead');
+  if(!a||!b||!c||!d)return;
+  var ae=document.activeElement;
+  if(ae!==a)a.value=MIN_DELIVERY; if(ae!==b)b.value=DELIVERY; if(ae!==c)c.value=FREE_FROM; if(ae!==d)d.value=LEAD_DAYS;
+  bindRules();
+}
+function bindRules(){
+  ['ruleMinDeliv','ruleDeliv','ruleFree','ruleLead'].forEach(function(id){var el=document.getElementById(id);if(!el||el._b)return;el._b=1;
+    el.addEventListener('input',function(){
+      MIN_DELIVERY=rulesNum(document.getElementById('ruleMinDeliv').value,MIN_DELIVERY);
+      DELIVERY=rulesNum(document.getElementById('ruleDeliv').value,DELIVERY);
+      FREE_FROM=rulesNum(document.getElementById('ruleFree').value,FREE_FROM);
+      LEAD_DAYS=Math.max(0,Math.round(rulesNum(document.getElementById('ruleLead').value,LEAD_DAYS)));
+      var st=document.getElementById('rulesStatus');if(st)st.textContent='Изменено — сохраняю…';
+      clearTimeout(_rulesT);_rulesT=setTimeout(saveRules,900);
+    });});
+}
+function saveRules(){
+  try{localStorage.setItem('bv_b2b_rules',JSON.stringify({free:FREE_FROM,minDeliv:MIN_DELIVERY,deliv:DELIVERY,leadDays:LEAD_DAYS}));}catch(e){}
+  cloudPut('settings',{free:FREE_FROM,minDeliv:MIN_DELIVERY,deliv:DELIVERY,leadDays:LEAD_DAYS,holidays:holidays});
+  var st=document.getElementById('rulesStatus');if(st)st.textContent='Сохранено в облако — партнёры увидят при следующем входе в кабинет';
+  if(typeof refreshOfferRefs==='function')refreshOfferRefs();
+}
+function saveHolidays(){try{localStorage.setItem('bv_b2b_holidays',JSON.stringify(holidays));}catch(e){}cloudPut('settings',{free:FREE_FROM,minDeliv:MIN_DELIVERY,deliv:DELIVERY,leadDays:LEAD_DAYS,holidays:holidays});}
 function flash(id){var el=document.getElementById(id);if(!el)return;el.innerHTML='<b>Сохранено ✓</b> '+nowStr();
   clearTimeout(el._t);el._t=setTimeout(function(){el.textContent='Правки сохраняются автоматически';},2500);}
 
